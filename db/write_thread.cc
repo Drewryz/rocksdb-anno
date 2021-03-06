@@ -267,6 +267,9 @@ void WriteThread::CompleteFollower(Writer* w, WriteGroup& write_group) {
   SetState(w, STATE_COMPLETED);
 }
 
+/*
+ * reading here. 2021-3-6-22:45 
+ */
 void WriteThread::JoinBatchGroup(Writer* w) {
   static AdaptationContext ctx("JoinBatchGroup");
 

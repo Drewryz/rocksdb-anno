@@ -57,6 +57,25 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
 }
 #endif  // ROCKSDB_LITE
 
+/*
+ * 调用栈如下：
+#0  rocksdb::DBImpl::WriteImpl (this=0x832040, write_options=..., my_batch=0x7fffffffd870, callback=0x0, log_used=0x0, log_ref=0, disable_memtable=false)
+    at /root/code/rocksdb/db/db_impl_write.cc:98
+#1  0x00007ffff72b3cbe in rocksdb::DBImpl::Write (this=0x832040, write_options=..., my_batch=0x7fffffffd870) at /root/code/rocksdb/db/db_impl_write.cc:49
+#2  0x00007ffff72b952d in rocksdb::DB::Put (this=0x832040, opt=..., column_family=0x83d640, key=..., value=...) at /root/code/rocksdb/db/db_impl_write.cc:1209
+#3  0x00007ffff72b3b2e in rocksdb::DBImpl::Put (this=0x832040, o=..., column_family=0x83d640, key=..., val=...) at /root/code/rocksdb/db/db_impl_write.cc:24
+#4  0x00007ffff72416cc in rocksdb::DB::Put (this=0x832040, options=..., key=..., value=...) at /root/code/rocksdb/include/rocksdb/db.h:228
+#5  0x0000000000408304 in main () at test.cpp:20 
+ */
+/*
+ * rocksdb的写操作入口函数
+ * write_options: 配置项
+ * my_batch: 持有kv数据
+ * 
+ * TODO:
+ * 2. write_thread_.JoinBatchGroup
+ * 4. WriteThread::Writer w
+ */
 Status DBImpl::WriteImpl(const WriteOptions& write_options,
                          WriteBatch* my_batch, WriteCallback* callback,
                          uint64_t* log_used, uint64_t log_ref,
@@ -95,8 +114,14 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     RecordTick(stats_, WRITE_WITH_WAL);
   }
 
+  /* RAII类，统计一些数据，忽略 */
   StopWatch write_sw(env_, immutable_db_options_.statistics.get(), DB_WRITE);
-
+  /*
+   * reading here. 2021-3-6-18:30 
+   */
+  /*
+   *  一个DB对象持有一个write_thread_对象
+   */
   write_thread_.JoinBatchGroup(&w);
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group

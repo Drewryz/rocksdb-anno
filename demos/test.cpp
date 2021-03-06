@@ -2,7 +2,7 @@
  * @Author: yangzaorang 
  * @Date: 2021-03-04 10:48:03 
  * @Last Modified by: yangzaorang
- * @Last Modified time: 2021-03-04 10:58:44
+ * @Last Modified time: 2021-03-06 17:57:38
  */
 
 #include <iostream>
@@ -13,7 +13,7 @@ int main() {
     rocksdb::DB* db;
     rocksdb::Options options;
     options.create_if_missing = true;
-    rocksdb::Status status = rocksdb::DB::Open(options, "/tmp/testdb", &db);
+    rocksdb::Status status = rocksdb::DB::Open(options, "/tmp/testdb2", &db);
     assert(status.ok());
     std::string key = "key1";
     std::string value = "value1";

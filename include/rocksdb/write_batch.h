@@ -58,6 +58,9 @@ struct SavePoint {
   bool is_cleared() const { return (size | count | content_flags) == 0; }
 };
 
+/*
+ * 封装了对数据增删改的接口。每个应用层的写操作都会对应一个WriteBatch对象。 
+ */
 class WriteBatch : public WriteBatchBase {
  public:
   explicit WriteBatch(size_t reserved_bytes = 0, size_t max_bytes = 0);

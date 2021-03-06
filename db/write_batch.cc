@@ -126,6 +126,10 @@ struct SavePoints {
 
 WriteBatch::WriteBatch(size_t reserved_bytes, size_t max_bytes)
     : save_points_(nullptr), content_flags_(0), max_bytes_(max_bytes), rep_() {
+  /*
+   * reserve预先分配空间，resize将string的前kHeader置空
+   * https://blog.csdn.net/liyazhen2011/article/details/86362584 
+   */
   rep_.reserve((reserved_bytes > WriteBatchInternal::kHeader) ?
     reserved_bytes : WriteBatchInternal::kHeader);
   rep_.resize(WriteBatchInternal::kHeader);

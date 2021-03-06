@@ -72,6 +72,10 @@ class WriteThread {
 
   struct Writer;
 
+  /*
+   * 下面的代码看起来似乎这样的：多个Writer组成一个链表，构成一个WriteGroup
+   */
+
   struct WriteGroup {
     Writer* leader = nullptr;
     Writer* last_writer = nullptr;
@@ -239,6 +243,15 @@ class WriteThread {
     explicit AdaptationContext(const char* name0) : name(name0), value(0) {}
   };
 
+  /*
+   * WriteThread构造调用栈
+#0  rocksdb::WriteThread::WriteThread (this=0x832730, db_options=...) at /root/code/rocksdb/db/write_thread.cc:26
+#1  0x00007ffff728b3fc in rocksdb::DBImpl::DBImpl (this=0x832040, options=..., dbname=...) at /root/code/rocksdb/db/db_impl.cc:193
+#2  0x00007ffff72e628c in rocksdb::DB::Open (db_options=..., dbname=..., column_families=..., handles=0x7fffffffd730, dbptr=0x7fffffffdd28)
+    at /root/code/rocksdb/db/db_impl_open.cc:951
+#3  0x00007ffff72e5f62 in rocksdb::DB::Open (options=..., dbname=..., dbptr=0x7fffffffdd28) at /root/code/rocksdb/db/db_impl_open.cc:919
+#4  0x00000000004081d4 in main () at test.cpp:16
+   */
   explicit WriteThread(const ImmutableDBOptions& db_options);
 
   virtual ~WriteThread() = default;

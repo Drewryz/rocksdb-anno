@@ -57,7 +57,10 @@ class WriteBatchBase {
   virtual Status Delete(ColumnFamilyHandle* column_family,
                         const SliceParts& key);
   virtual Status Delete(const SliceParts& key);
-
+  
+  /*
+   * SingleDelete 参见：https://github.com/facebook/rocksdb/wiki/single-delete 
+   */
   // If the database contains a mapping for "key", erase it. Expects that the
   // key was not overwritten. Else do nothing.
   virtual Status SingleDelete(ColumnFamilyHandle* column_family,
