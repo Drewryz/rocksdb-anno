@@ -117,12 +117,12 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   /* RAII类，统计一些数据，忽略 */
   StopWatch write_sw(env_, immutable_db_options_.statistics.get(), DB_WRITE);
   /*
-   * reading here. 2021-3-6-18:30 
-   */
-  /*
    *  一个DB对象持有一个write_thread_对象
    */
   write_thread_.JoinBatchGroup(&w);
+  /*
+   * reading here. 2021-3-7-18:46 
+   */
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group
     PERF_TIMER_GUARD(write_memtable_time);

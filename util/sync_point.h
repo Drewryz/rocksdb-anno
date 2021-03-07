@@ -51,6 +51,9 @@ extern void TestKillRandom(std::string kill_point, int odds,
 
 namespace rocksdb {
 
+/*
+ * 该类提供了在单元测试中确定地重现竞态条件的工具。跳过，不影响主流程。
+ */
 // This class provides facility to reproduce race conditions deterministically
 // in unit tests.
 // Developer could specify sync points in the codebase via TEST_SYNC_POINT.

@@ -47,6 +47,10 @@ class WriteThread {
     // the leader to STATE_COMPLETED.
     STATE_GROUP_LEADER = 2,
 
+    /*
+     * leader要么为整个组写memtable，要么通过调用LaunchParallelMemTableWrite来启动
+     * 一个对memtable的并行gruop写。 
+     */
     // The state used to inform a waiting writer that it has become the
     // leader of memtable writer group. The leader will either write
     // memtable for the whole group, or launch a parallel group write
@@ -129,6 +133,10 @@ class WriteThread {
     SequenceNumber sequence;  // the sequence number to use for the first key
     Status status;            // status of memtable inserter
     Status callback_status;   // status returned by callback->Callback()
+    /*
+     * std::aligned_storage的作用：不需要通过构造函数，申请特定大小的内存空间。参见：
+     * https://en.cppreference.com/w/cpp/types/aligned_storage
+     */
     std::aligned_storage<sizeof(std::mutex)>::type state_mutex_bytes;
     std::aligned_storage<sizeof(std::condition_variable)>::type state_cv_bytes;
     Writer* link_older;  // read/write only before linking, or as leader
@@ -185,6 +193,10 @@ class WriteThread {
         // transitions, because we can't atomically create the mutex and
         // link into the list.
         made_waitable = true;
+        /*
+         * placement new operator, 参见：
+         * https://www.geeksforgeeks.org/placement-new-operator-cpp/ 
+         */
         new (&state_mutex_bytes) std::mutex;
         new (&state_cv_bytes) std::condition_variable;
       }

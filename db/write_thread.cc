@@ -25,6 +25,11 @@ WriteThread::WriteThread(const ImmutableDBOptions& db_options)
       newest_memtable_writer_(nullptr),
       last_sequence_(0) {}
 
+/*
+ * 阻塞当前线程，直到writer的达到特定状态
+ * 1. 如果当前writer没有创建mutex和条件变量，则创建之
+ * 2. 如果当前状态不满足等待的状态，则sleep等到条件变量满足
+ */
 uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
   // We're going to block.  Lazily create the mutex.  We guarantee
   // propagation of this construction to the waker via the
@@ -38,7 +43,9 @@ uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
   if ((state & goal_mask) == 0 &&
       w->state.compare_exchange_strong(state, STATE_LOCKED_WAITING)) {
     // we have permission (and an obligation) to use StateMutex
+    /* RAII，https://en.cppreference.com/w/cpp/thread/unique_lock */
     std::unique_lock<std::mutex> guard(w->StateMutex());
+    /* https://en.cppreference.com/w/cpp/thread/condition_variable/wait */
     w->StateCV().wait(guard, [w] {
       return w->state.load(std::memory_order_relaxed) != STATE_LOCKED_WAITING;
     });
@@ -53,10 +60,16 @@ uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
   return state;
 }
 
+/*
+ * 等待writer的state成为某些状态后返回
+ * 1. 轮询一段时间，如果目标达成，皆大欢喜直接返回
+ * 2. 不然进行阻塞等待，BlockingAwaitState
+ */
 uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
                                 AdaptationContext* ctx) {
   uint8_t state;
 
+  /* 轮询一段时间 */
   // On a modern Xeon each loop takes about 7 nanoseconds (most of which
   // is the effect of the pause instruction), so 200 iterations is a bit
   // more than a microsecond.  This is long enough that waits longer than
@@ -68,6 +81,11 @@ uint8_t WriteThread::AwaitState(Writer* w, uint8_t goal_mask,
     }
     port::AsmVolatilePause();
   }
+
+  /*
+   * 以下是为了避免long-wait的优化代码，参见这篇文章:
+   * https://www.cnblogs.com/cobbliu/articles/8511269.html 
+   */
 
   // If we're only going to end up waiting a short period of time,
   // it can be a lot more efficient to call std::this_thread::yield()
@@ -189,12 +207,19 @@ void WriteThread::SetState(Writer* w, uint8_t new_state) {
   }
 }
 
+/*
+ * 1. 将w的link_older指向newest_writer现在记录的writer
+ * 2. 更改newest_writer记录，使其指向w
+ * 3. 如果第一步newest_writer记录的writer addr为空，则返回true
+ */
 bool WriteThread::LinkOne(Writer* w, std::atomic<Writer*>* newest_writer) {
   assert(newest_writer != nullptr);
   assert(w->state == STATE_INIT);
   Writer* writers = newest_writer->load(std::memory_order_relaxed);
   while (true) {
+    /* w的link_older指向writers */
     w->link_older = writers;
+    /* newest_writer记录w的addr */
     if (newest_writer->compare_exchange_weak(writers, w)) {
       return (writers == nullptr);
     }
@@ -268,11 +293,15 @@ void WriteThread::CompleteFollower(Writer* w, WriteGroup& write_group) {
 }
 
 /*
- * reading here. 2021-3-6-22:45 
+ * 将一个writer加入BatchGroup中，步骤如下：
+ * 1. 将当前writer加入链表
+ * 2. 如果加入链表为空，则将当前writer看成leader, 返回
+ * 3. 如果链表不为空，则等待当前writer的状态被设置为..., 返回
  */
 void WriteThread::JoinBatchGroup(Writer* w) {
   static AdaptationContext ctx("JoinBatchGroup");
 
+  /* 如果newest_writer_记录为空，则将当前writer看成leader */
   assert(w->batch != nullptr);
   bool linked_as_leader = LinkOne(w, &newest_writer_);
   if (linked_as_leader) {
