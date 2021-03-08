@@ -16,6 +16,7 @@
 #include "monitoring/perf_context_imp.h"
 #include "options/options_helper.h"
 #include "util/sync_point.h"
+#include <stdio.h>
 
 namespace rocksdb {
 // Convenience methods
@@ -71,10 +72,31 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
  * rocksdb的写操作入口函数
  * write_options: 配置项
  * my_batch: 持有kv数据
+ * 1. 最开始有一些与配置项相关的代码，跳过
+ * 2. 构造一个writer，并将其join到一个batch group中
+ * 3. 根据join的结果，如果是：
+ *    1) STATE_PARALLEL_MEMTABLE_WRITER:
+ *       表示当前线程自己要将自己的数据写入。TODO: 写入过程
+ *    2) STATE_COMPLETED:
+ *       表示数据已经被leader写完成，返回
+ *    3) STATE_GROUP_LEADER:
+ *       表示当前线程作为leader:
+ *       1)) 写入数据之前预处理，参见PreprocessWrite
+ *       2)) 获取WAL的log_writer
+ *       3)) 构建write batch group，参见EnterAsBatchGroupLeader
  * 
  * TODO:
- * 2. write_thread_.JoinBatchGroup
- * 4. WriteThread::Writer w
+ * 1. versions_->GetColumnFamilySet() / VersionSet
+ *    参见：http://liuyangming.tech/05-2020/write-prepared.html
+ * 2. ColumnFamilySet
+ * 3. InsertInto
+ * 4. enable_pipelined_write
+ *    之前我们分析了RocksDB的默认写入方式，而在options可以设置enable_pipelined_write, 即pipelined(流水线)写入方式，
+ *    默认的写入方式中，一个batch的需要完成WAL之后，再完成Memtable的写入才选出下一个Leader.而Pipelined写入中不需要等待Memtable写入完成，
+ *    即当WAL写入完成之后，即可选出下一个Leader继续完成下一个batch的写入从而达到Pipelined的效果.
+ *    参见：https://zhuanlan.zhihu.com/p/45666093
+ * 5. concurrent_prepare_
+ *    http://liuyangming.tech/05-2020/write-prepared.html
  */
 Status DBImpl::WriteImpl(const WriteOptions& write_options,
                          WriteBatch* my_batch, WriteCallback* callback,
@@ -100,7 +122,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     return WriteImplWALOnly(write_options, my_batch, callback, log_used,
                             log_ref);
   }
-
+  /* TODO: ??? */
   if (immutable_db_options_.enable_pipelined_write) {
     return PipelinedWriteImpl(write_options, my_batch, callback, log_used,
                               log_ref, disable_memtable);
@@ -126,10 +148,15 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group
     PERF_TIMER_GUARD(write_memtable_time);
-
+    printf("mark1mark1\n");
     if (w.ShouldWriteToMemtable()) {
       ColumnFamilyMemTablesImpl column_family_memtables(
           versions_->GetColumnFamilySet());
+      /* 
+       * 传入的参数: w.sequence是已经初始化过的
+       * 猜测是leader做的
+       */
+      printf("yzryzr %llu\n", (long long unsigned int)w.sequence);
       w.status = WriteBatchInternal::InsertInto(
           &w, w.sequence, &column_family_memtables, &flush_scheduler_,
           write_options.ignore_missing_column_families, 0 /*log_number*/, this,
@@ -158,6 +185,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   // else we are the leader of the write batch group
   assert(w.state == WriteThread::STATE_GROUP_LEADER);
 
+  /* 以下代码是当前线程作为leader时的逻辑 */
   // Once reaches this point, the current writer "w" will try to do its write
   // job.  It may also pick up some of the remaining writers in the "writers_"
   // when it finds suitable, and finish them in the same write batch.
@@ -175,6 +203,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   bool need_log_sync = !write_options.disableWAL && write_options.sync;
   bool need_log_dir_sync = need_log_sync && !log_dir_synced_;
   if (!concurrent_prepare_ || !disable_memtable) {
+    /* 写入之前的预处理 */
     // With concurrent writes we do preprocess only in the write thread that
     // also does write to memtable to avoid sync issue on shared data structure
     // with the other thread
@@ -208,6 +237,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
                     write_group.size > 1;
     int total_count = 0;
     uint64_t total_byte_size = 0;
+    /* reading here. 2021-3-8-17:45 */
     for (auto* writer : write_group) {
       if (writer->CheckCallback(this)) {
         if (writer->ShouldWriteToMemtable()) {

@@ -251,6 +251,24 @@ bool WriteThread::LinkGroup(WriteGroup& write_group,
   }
 }
 
+/*
+ * 设置writer的后置指针， eg：
+ * 
+ *  函数执行前：writer3 == head
+ *  ----------             ----------             ----------             ----------
+ * |          |  <-----   |          |   <-----  |          |   <-----  |          |
+ * |   NULL   |           |  writer1 |           |  writer2 |           |  writer3 |
+ * |          |           |          |           |          |           |          |
+ *  ----------             ----------             ----------             ----------
+ * 
+ *  函数执行后：
+ *  ----------             ----------             ----------             ----------
+ * |          |  <-----   |          |   <-----  |          |   <-----  |          |
+ * |   NULL   |           |  writer1 |   ----->  |  writer2 |   ----->  |  writer3 |
+ * |          |           |          |           |          |           |          |
+ *  ----------             ----------             ----------             ----------
+
+ */
 void WriteThread::CreateMissingNewerLinks(Writer* head) {
   while (true) {
     Writer* next = head->link_older;
@@ -331,6 +349,14 @@ void WriteThread::JoinBatchGroup(Writer* w) {
   }
 }
 
+/*
+ * 构建一个write batch group
+ * write_group: 传出参数
+ * 返回值：构建的write batch group要写的数据大小
+ * 1. 设置newest_writer_到leader链表的元素的后置指针，CreateMissingNewerLinks
+ * 2. 从leader开始后续遍历链表，遍历的过程中，任何一个writer不满足成组条件则break
+ *    write_group->last_writer记录了构建的write batch group的最后一个writer元素
+ */
 size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
                                             WriteGroup* write_group) {
   assert(leader->link_older == nullptr);
@@ -351,6 +377,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   write_group->leader = leader;
   write_group->last_writer = leader;
   write_group->size = 1;
+  /* reading here. 2021-3-8-16:20 */
   Writer* newest_writer = newest_writer_.load(std::memory_order_acquire);
 
   // This is safe regardless of any db mutex status of the caller. Previous
@@ -360,6 +387,7 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   // so we have already received our MarkJoined).
   CreateMissingNewerLinks(newest_writer);
 
+  /* 从leader开始后续遍历链表 */
   // Tricky. Iteration start (leader) is exclusive and finish
   // (newest_writer) is inclusive. Iteration goes from old to new.
   Writer* w = leader;

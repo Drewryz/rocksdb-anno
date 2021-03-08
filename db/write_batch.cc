@@ -817,9 +817,11 @@ Status WriteBatch::PopSavePoint() {
 }
 
 class MemTableInserter : public WriteBatch::Handler {
-
+  /* C++默认访问权限是私有的 */
+  /* LSN */
   SequenceNumber sequence_;
   ColumnFamilyMemTables* const cf_mems_;
+  /* ??? */
   FlushScheduler* const flush_scheduler_;
   const bool ignore_missing_column_families_;
   const uint64_t recovering_log_number_;
@@ -1316,6 +1318,9 @@ Status WriteBatchInternal::InsertInto(WriteThread::WriteGroup& write_group,
   return Status::OK();
 }
 
+/*
+ * reading here. 2021-3-7-22:04 
+ */
 Status WriteBatchInternal::InsertInto(WriteThread::Writer* writer,
                                       SequenceNumber sequence,
                                       ColumnFamilyMemTables* memtables,

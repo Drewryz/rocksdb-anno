@@ -82,11 +82,13 @@ class WriteThread {
 
   struct WriteGroup {
     Writer* leader = nullptr;
+    /* 当前write group最后一个writer，参考EnterAsBatchGroupLeader函数 */
     Writer* last_writer = nullptr;
     SequenceNumber last_sequence;
     // before running goes to zero, status needs leader->StateMutex()
     Status status;
     std::atomic<size_t> running;
+    /* size表示有多少个writer处于当前的WriteGroup中 */
     size_t size = 0;
 
     struct Iterator {
@@ -129,9 +131,13 @@ class WriteThread {
     WriteCallback* callback;
     bool made_waitable;          // records lazy construction of mutex and cv
     std::atomic<uint8_t> state;  // write under StateMutex() or pre-link
+    /*
+     * 关于write_group的赋值，参见EnterAsBatchGroupLeader函数 
+     */
     WriteGroup* write_group;
     SequenceNumber sequence;  // the sequence number to use for the first key
     Status status;            // status of memtable inserter
+    /* callback_status默认初始化为ok */
     Status callback_status;   // status returned by callback->Callback()
     /*
      * std::aligned_storage的作用：不需要通过构造函数，申请特定大小的内存空间。参见：
@@ -139,6 +145,7 @@ class WriteThread {
      */
     std::aligned_storage<sizeof(std::mutex)>::type state_mutex_bytes;
     std::aligned_storage<sizeof(std::condition_variable)>::type state_cv_bytes;
+    /* link_older前置指针，link_newer后置指针 */
     Writer* link_older;  // read/write only before linking, or as leader
     Writer* link_newer;  // lazy, read/write only before linking, or as leader
 

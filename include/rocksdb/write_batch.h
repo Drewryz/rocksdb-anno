@@ -175,6 +175,7 @@ class WriteBatch : public WriteBatchBase {
   // Otherwise returns Status::OK().
   Status PopSavePoint() override;
 
+  /* 支持遍历batch的content？？？ */
   // Support for iterating over the contents of a batch.
   class Handler {
    public:

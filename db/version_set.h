@@ -692,6 +692,7 @@ class VersionSet {
   // Allocate and return a new file number
   uint64_t NewFileNumber() { return next_file_number_.fetch_add(1); }
 
+  /* 同一个DB下的所有column family共享WAL，所以LSN由VersionSet持有 */
   // Return the last sequence number.
   uint64_t LastSequence() const {
     return last_sequence_.load(std::memory_order_acquire);
