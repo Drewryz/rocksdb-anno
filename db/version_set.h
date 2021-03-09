@@ -692,7 +692,13 @@ class VersionSet {
   // Allocate and return a new file number
   uint64_t NewFileNumber() { return next_file_number_.fetch_add(1); }
 
-  /* 同一个DB下的所有column family共享WAL，所以LSN由VersionSet持有 */
+  /*
+   * RocksDB中的每一条记录(KeyValue)都有一个LogSequenceNumber(后面统称lsn)，从最初的0开始，每次写入加1。
+   * 该值为逻辑量，区别于InnoDB的lsn为redo log物理写入字节量。
+   * 这个lsn在RocksDB内部的memtable中是单调递增的，在WriteAheadLog(WAL)中以WriteBatch为单位递增(count(batch.records)为单位)。 
+   * 同一个DB下的所有column family共享WAL，所以LSN由VersionSet持有。 参见：
+   * https://developer.aliyun.com/article/257424
+   */
   // Return the last sequence number.
   uint64_t LastSequence() const {
     return last_sequence_.load(std::memory_order_acquire);

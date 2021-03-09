@@ -57,6 +57,7 @@ class WriteThread {
     // to memtable by calling LaunchParallelMemTableWrite.
     STATE_MEMTABLE_WRITER_LEADER = 4,
 
+    /* 并行写memtable */
     // The state used to inform a waiting writer that it has become a
     // parallel memtable writer. It can be the group leader who launch the
     // praallel writer group, or one of the followers. The writer should then
@@ -84,9 +85,11 @@ class WriteThread {
     Writer* leader = nullptr;
     /* 当前write group最后一个writer，参考EnterAsBatchGroupLeader函数 */
     Writer* last_writer = nullptr;
+    /* 当前write group最后的sequence */
     SequenceNumber last_sequence;
     // before running goes to zero, status needs leader->StateMutex()
     Status status;
+    /* 表示当前group中，处于PARALLEL_MEMTABLE_WRITER状态的wirter的个数 */
     std::atomic<size_t> running;
     /* size表示有多少个writer处于当前的WriteGroup中 */
     size_t size = 0;
@@ -126,6 +129,7 @@ class WriteThread {
     bool no_slowdown;
     bool disable_wal;
     bool disable_memtable;
+    /* 记录当前batch要写入的wal日志文件编号 */
     uint64_t log_used;  // log number that this batch was inserted into
     uint64_t log_ref;   // log number that memtable insert should reference
     WriteCallback* callback;
@@ -369,6 +373,11 @@ class WriteThread {
   // Allow multiple writers write to memtable concurrently.
   const bool allow_concurrent_memtable_write_;
 
+  /*
+   * pipelined(流水线)写入方式，默认的写入方式中，一个batch的需要完成WAL之后，再完成Memtable的写入才选出下一个Leader.
+   * 而Pipelined写入中不需要等待Memtable写入完成，即当WAL写入完成之后，即可选出下一个Leader继续完成下一个batch的写入从而达到Pipelined的效果.
+   * 参见：https://zhuanlan.zhihu.com/p/45666093
+   */
   // Enable pipelined write to WAL and memtable.
   const bool enable_pipelined_write_;
 

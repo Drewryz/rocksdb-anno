@@ -29,6 +29,7 @@ WriteThread::WriteThread(const ImmutableDBOptions& db_options)
  * 阻塞当前线程，直到writer的达到特定状态
  * 1. 如果当前writer没有创建mutex和条件变量，则创建之
  * 2. 如果当前状态不满足等待的状态，则sleep等到条件变量满足
+ * 注：唤醒逻辑在SetState中
  */
 uint8_t WriteThread::BlockingAwaitState(Writer* w, uint8_t goal_mask) {
   // We're going to block.  Lazily create the mutex.  We guarantee
@@ -533,6 +534,13 @@ void WriteThread::LaunchParallelMemTableWriters(WriteGroup* write_group) {
   }
 }
 
+/*
+ *  判断传入的writer w是否是本write batch group中最后一个完成的writer
+ * 1. 如果不是，则等待最后一个完成的writer将当前writer的状态置为STATE_COMPLETED
+ * 2. 如果是，直接返回true
+ * 返回值：
+ * true, 表示传入的writer是本write batch group中最后一个完成的writer
+ */
 // This method is called by both the leader and parallel followers
 bool WriteThread::CompleteParallelMemTableWriter(Writer* w) {
   static AdaptationContext ctx("CompleteParallelMemTableWriter");
@@ -564,6 +572,16 @@ void WriteThread::ExitAsBatchGroupFollower(Writer* w) {
   SetState(write_group->leader, STATE_COMPLETED);
 }
 
+/*
+ * 退出write batch group
+ * 1. 如果开启了pipeline写
+ *    TODO...
+ * 2. 如果没有开启pipeline写
+ *    1) 将newest_writer_之前的所有writer建立双向链表
+ *    2) 设置下一个write batch group的新leader(本组最后一个writer的后置writer)
+ *    3) 拆链，将新leader的前置指针设为null
+ *    4) 将本组所有writer的状态设置为STATE_COMPLETED
+ */
 void WriteThread::ExitAsBatchGroupLeader(WriteGroup& write_group,
                                          Status status) {
   static AdaptationContext ctx("ExitAsBatchGroupLeader");

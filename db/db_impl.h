@@ -864,6 +864,7 @@ class DBImpl : public DB {
   // * whenever there is an error in background purge, flush or compaction
   // * whenever num_running_ingest_file_ goes to 0.
   InstrumentedCondVar bg_cv_;
+  /* logfile_number_: 当前WAL日志文件的编号 */
   // Writes are protected by locking both mutex_ and log_write_mutex_, and reads
   // must be under either mutex_ or log_write_mutex_. Since after ::Open,
   // logfile_number_ is currently updated only in write_thread_, it can be read
@@ -872,6 +873,8 @@ class DBImpl : public DB {
   std::deque<uint64_t>
       log_recycle_files;  // a list of log files that we can recycle
   bool log_dir_synced_;
+
+  /* 表示当前WAL文件已经写入了数据，不为空 */
   // Without concurrent_prepare, read and writes to log_empty_ are protected by
   // mutex_. Since it is currently updated/read only in write_thread_, it can be
   // accessed from the same write_thread_ without any locks. With
@@ -912,6 +915,8 @@ class DBImpl : public DB {
     // true for some prefix of logs_
     bool getting_synced = false;
   };
+
+  /* 记录所有活跃的WAL日志文件 */
   // Without concurrent_prepare, read and writes to alive_log_files_ are
   // protected by mutex_. However since back() is never popped, and push_back()
   // is done only from write_thread_, the same thread can access the item
@@ -935,6 +940,7 @@ class DBImpl : public DB {
   std::deque<LogWriterNumber> logs_;
   // Signaled when getting_synced becomes false for some of the logs_.
   InstrumentedCondVar log_sync_cv_;
+  /* 记录自系统本次运行开始，所有已经写入的log日志大小？ */
   std::atomic<uint64_t> total_log_size_;
   // only used for dynamically adjusting max_total_wal_size. it is a sum of
   // [write_buffer_size * max_write_buffer_number] over all column families

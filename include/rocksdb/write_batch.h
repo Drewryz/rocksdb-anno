@@ -323,6 +323,13 @@ class WriteBatch : public WriteBatchBase {
   friend class LocalSavePoint;
   SavePoints* save_points_;
 
+  /*
+   * wal_term_point_类似write_batch数据的快照，关于wal_term_point_的流转过程，参考：
+   * GetWalTerminationPoint函数和MarkWalTerminationPoint函数
+   * 
+   * 根据MarkWalTerminationPoint的调用发现wal_term_point_的使用只在与事务相关的代码中，
+   * 否则，wal_term_point_的所有成员变量初始化为0
+   */
   // When sending a WriteBatch through WriteImpl we might want to
   // specify that only the first x records of the batch be written to
   // the WAL.
@@ -338,6 +345,7 @@ class WriteBatch : public WriteBatchBase {
   size_t max_bytes_;
 
  protected:
+  /* 存储数据 */
   std::string rep_;  // See comment in write_batch.cc for the format of rep_
 
   // Intentionally copyable

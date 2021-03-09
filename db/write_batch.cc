@@ -50,6 +50,7 @@
 #include "rocksdb/merge_operator.h"
 #include "util/coding.h"
 #include "util/string_util.h"
+#include <stdio.h>
 
 namespace rocksdb {
 
@@ -457,6 +458,7 @@ Status WriteBatch::Iterate(Handler* handler) const {
   }
 }
 
+/* 返回当前writeBatch有多少个kv对 */
 int WriteBatchInternal::Count(const WriteBatch* b) {
   return DecodeFixed32(b->rep_.data() + 8);
 }
@@ -1366,6 +1368,12 @@ Status WriteBatchInternal::SetContents(WriteBatch* b, const Slice& contents) {
   return Status::OK();
 }
 
+/*
+ * 将src的数据append到dst上
+ * TODO:
+ * 1. 好像Append不止是wal，还包括所有的数据？
+ * reading here. 2021-3-9-12:09
+ */
 Status WriteBatchInternal::Append(WriteBatch* dst, const WriteBatch* src,
                                   const bool wal_only) {
   size_t src_len;

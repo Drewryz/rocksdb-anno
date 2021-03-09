@@ -76,7 +76,12 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
  * 2. 构造一个writer，并将其join到一个batch group中
  * 3. 根据join的结果，如果是：
  *    1) STATE_PARALLEL_MEMTABLE_WRITER:
- *       表示当前线程自己要将自己的数据写入。TODO: 写入过程
+ *       表示当前线程自己要将自己的数据写入memtable
+ *       1)) 写入memtable， InsertInto
+ *       2)) 如果本writer是当前write batch group的最后一个writer，则
+ *           1))) 设置全局sequence number
+ *           2))) 退出write batch group, ExitAsBatchGroupFollower
+ *       3)) 
  *    2) STATE_COMPLETED:
  *       表示数据已经被leader写完成，返回
  *    3) STATE_GROUP_LEADER:
@@ -84,6 +89,20 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
  *       1)) 写入数据之前预处理，参见PreprocessWrite
  *       2)) 获取WAL的log_writer
  *       3)) 构建write batch group，参见EnterAsBatchGroupLeader
+ *       4)) 遍历write batch group, 计算total_count/total_byte_size/parallel，
+ *           计算的过程涉及WriteBatchInternal和WriteBatch两个类，细节暂时跳过
+ *       5)) 记录一些DB状态
+ *       6)) 写write batch group的wal日志
+ *       7)) 写memtable
+ *           1))) 根据之前的判断，如果不能并发写memtable，则由当前线程将所有的数据写入memtable
+ *           2))) 如果可以并发写, 计算并设置当前write batch group的所有writer的sequence
+ *                将当前write batch group的所有writer的状态设置为STATE_PARALLEL_MEMTABLE_WRITER
+ *                leader将自己的数据写入memtable
+ *       8)) 如果处于并发写memtable模式下，则等待本组所有的writer写完成
+ *       9)) 如果当前leader线程是最后一个完成写memtable的：
+ *           1))) 设置全局sequence number
+ *           2))) 退出write batch group, ExitAsBatchGroupLeader
+ *       10)) 返回
  * 
  * TODO:
  * 1. versions_->GetColumnFamilySet() / VersionSet
@@ -96,7 +115,13 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
  *    即当WAL写入完成之后，即可选出下一个Leader继续完成下一个batch的写入从而达到Pipelined的效果.
  *    参见：https://zhuanlan.zhihu.com/p/45666093
  * 5. concurrent_prepare_
+ *    与2PC协议有关，参见：
  *    http://liuyangming.tech/05-2020/write-prepared.html
+ * 6. writer->batch->HasMerge()
+ * 7. InternalStats* default_cf_internal_stats_
+ * 8. WriteBatchInternal::InsertInto
+ * 
+ * !!! pipeline写，InsertInto，write_batch, 2PC
  */
 Status DBImpl::WriteImpl(const WriteOptions& write_options,
                          WriteBatch* my_batch, WriteCallback* callback,
@@ -141,6 +166,11 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   /*
    *  一个DB对象持有一个write_thread_对象
    */
+  /*
+   * Join的时候当前线程可能会sleep，处于sleep中的线程会被别的线程唤醒，有以下几种情况
+   * 1. 被当前write batch group的leader唤醒，唤醒的状态可能为STATE_PARALLEL_MEMTABLE_WRITER和STATE_COMPLETED
+   * 2. 被上一个write batch group的leader唤醒，唤醒的状态为STATE_GROUP_LEADER
+   */
   write_thread_.JoinBatchGroup(&w);
   /*
    * reading here. 2021-3-7-18:46 
@@ -157,6 +187,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
        * 猜测是leader做的
        */
       printf("yzryzr %llu\n", (long long unsigned int)w.sequence);
+      /* 此时writer自身的一些变量已经被leader设置过了 */
       w.status = WriteBatchInternal::InsertInto(
           &w, w.sequence, &column_family_memtables, &flush_scheduler_,
           write_options.ignore_missing_column_families, 0 /*log_number*/, this,
@@ -277,14 +308,14 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     }
 
     PERF_TIMER_STOP(write_pre_and_post_process_time);
-
+    /* 写WAL */
     if (!concurrent_prepare_) {
       if (status.ok() && !write_options.disableWAL) {
         PERF_TIMER_GUARD(write_wal_time);
         status = WriteToWAL(write_group, log_writer, log_used, need_log_sync,
                             need_log_dir_sync, last_sequence + 1);
       }
-    } else {
+    } else { /* 与2PC有关，跳过 */
       if (status.ok() && !write_options.disableWAL) {
         PERF_TIMER_GUARD(write_wal_time);
         // LastToBeWrittenSequence is increased inside WriteToWAL under
@@ -298,9 +329,10 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     }
     assert(last_sequence != kMaxSequenceNumber);
     const SequenceNumber current_sequence = last_sequence + 1;
+    /* ???? */
     last_sequence += total_count;
 
-    if (status.ok()) {
+    if (status.ok()) { /* 以下逻辑，开始写入memtable */
       PERF_TIMER_GUARD(write_memtable_time);
 
       if (!parallel) {
@@ -342,6 +374,10 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     WriteCallbackStatusCheck(status);
   }
 
+  /*
+   * 上面在写WAL的时候(WriteToWAL)已经做了flush wal, 为什么这里还要判断need_log_sync？
+   * 看逻辑应该和2PC逻辑相关，跳过
+   */
   if (need_log_sync) {
     mutex_.Lock();
     MarkLogsSynced(logfile_number_, need_log_dir_sync, status);
@@ -694,6 +730,17 @@ Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
   return status;
 }
 
+/*
+ * 将一个batch writer group所有的writer合并成一个writer，并返回
+ * write_group：传入参数
+ * tmp_batch：传入参数，主要的作用在于内存管理和性能优化
+ * write_with_wal: 传出参数, 表示合并了多少writer
+ * 返回值：合并后的writer
+ * 
+ * 1. 如果当前group只有leader一个writer，那merged_batch就是leader本身
+ * 2. 如果有多个writer，将他们merge成单个writer
+ * 
+ */
 WriteBatch* DBImpl::MergeBatch(const WriteThread::WriteGroup& write_group,
                                WriteBatch* tmp_batch, size_t* write_with_wal) {
   assert(write_with_wal != nullptr);
@@ -706,9 +753,11 @@ WriteBatch* DBImpl::MergeBatch(const WriteThread::WriteGroup& write_group,
     // we simply write the first WriteBatch to WAL if the group only
     // contains one batch, that batch should be written to the WAL,
     // and the batch is not wanting to be truncated
+    /* 如果当前group只有leader一个writer，那merged_batch就是leader本身 */
     merged_batch = leader->batch;
     *write_with_wal = 1;
   } else {
+    /* 如果有多个writer，将他们merge成单个writer */
     // WAL needs all of the batches flattened into a single batch.
     // We could avoid copying here with an iov-like AddRecord
     // interface
@@ -724,6 +773,11 @@ WriteBatch* DBImpl::MergeBatch(const WriteThread::WriteGroup& write_group,
   return merged_batch;
 }
 
+/*
+ * 实际往WAL文件写日志的函数
+ * log_used: 传出参数, 记录写入的WAL日志number
+ * log_size: 传出参数, merged_batch的log size
+ */
 // When concurrent_prepare_ is disabled, this function is called from the only
 // write thread. Otherwise this must be called holding log_write_mutex_.
 Status DBImpl::WriteToWAL(const WriteBatch& merged_batch,
@@ -744,6 +798,23 @@ Status DBImpl::WriteToWAL(const WriteBatch& merged_batch,
   return status;
 }
 
+/*
+ * 写WAL。
+ * sequence: 传入参数。当前write batch group所属的LSN
+ * log_used: 传出参数。当前write batch group写入的WAL文件编号
+ * 
+ * 1. 将一个batch writer group所有的writer合并成一个writer，MergeBatch
+ * 2. 设置write batch要写入的wal日志文件的编号
+ * 3. 设置write batch的LSN
+ * 4. 实际将日志写入wal文件，WriteToWAL
+ * 5. 如果需要sync，则将所有log做sync。将所有log做sync的原因是为了避免日志空洞
+ * 6. 清空tmp_batch_
+ * 7. 记录一些状态数据
+ * 
+ * TODO:
+ * 1. logfile_number_目测是wal日志文件的编号
+ * 2. 
+ */
 Status DBImpl::WriteToWAL(const WriteThread::WriteGroup& write_group,
                           log::Writer* log_writer, uint64_t* log_used,
                           bool need_log_sync, bool need_log_dir_sync,
