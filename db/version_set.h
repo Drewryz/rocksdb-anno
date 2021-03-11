@@ -612,6 +612,10 @@ class Version {
   void operator=(const Version&);
 };
 
+/*
+ * 关于rocksdb中的version管理，参见：
+ * https://www.cnblogs.com/coguin/p/11405082.html 
+ */
 class VersionSet {
  public:
   VersionSet(const std::string& dbname, const ImmutableDBOptions* db_options,

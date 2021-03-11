@@ -2675,6 +2675,11 @@ void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
   builder->Apply(edit);
 }
 
+/*
+ * version_set recover
+ * 1. 从CURRENT文件获取当前manifest文件
+ * 2. 
+ */
 Status VersionSet::Recover(
     const std::vector<ColumnFamilyDescriptor>& column_families,
     bool read_only) {
@@ -2712,6 +2717,7 @@ Status VersionSet::Recover(
                  manifest_filename.c_str());
 
   manifest_filename = dbname_ + "/" + manifest_filename;
+  /* reading here. 2021-3-11-18:14 */
   unique_ptr<SequentialFileReader> manifest_file_reader;
   {
     unique_ptr<SequentialFile> manifest_file;

@@ -133,6 +133,7 @@ endif()
 
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS})
 include(CheckCXXSourceCompiles)
+# 参见：https://cmake.org/cmake/help/latest/module/CheckCXXSourceCompiles.html
 CHECK_CXX_SOURCE_COMPILES("
 #include <cstdint>
 #include <nmmintrin.h>

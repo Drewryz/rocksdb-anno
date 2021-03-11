@@ -292,6 +292,11 @@ Status DBImpl::Directories::SetDirectories(
   return Status::OK();
 }
 
+/*
+ * WAL数据恢复
+ * 调用函数：Status CompactedDBImpl::Init(const Options& options)
+ * Status s = Recover({cf}, true , false, true); 
+ */
 Status DBImpl::Recover(
     const std::vector<ColumnFamilyDescriptor>& column_families, bool read_only,
     bool error_if_log_file_exist, bool error_if_data_exists_in_logs) {
