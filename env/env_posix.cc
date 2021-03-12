@@ -147,6 +147,10 @@ class PosixEnv : public Env {
     }
   }
 
+  /*
+   * 创建文件。
+   * result：输出参数，表示创建的文件
+   */
   virtual Status NewSequentialFile(const std::string& fname,
                                    unique_ptr<SequentialFile>* result,
                                    const EnvOptions& options) override {
@@ -954,10 +958,25 @@ std::string Env::GenerateUniqueId() {
   return uuid2;
 }
 
+
+/*
+ * TODO:
+ * 1. StaticMeta与ThreadLocalPtr，暂时跳过
+ * 2. PosixEnv
+ */
 //
 // Default Posix Env
 //
 Env* Env::Default() {
+  /*
+   * C++静态变量的析构是按照变量被初始化相反的顺序进行的，eg:
+   * {
+   *    static a;
+   *    static b;
+   * } 
+   * 析构的时候会先析构b，再析构a。
+   * 因此，对于这个函数来说，析构的时候会先析构default_env，再析构StaticMeta
+   */
   // The following function call initializes the singletons of ThreadLocalPtr
   // right before the static default_env.  This guarantees default_env will
   // always being destructed before the ThreadLocalPtr singletons get
@@ -968,6 +987,7 @@ Env* Env::Default() {
   // of their construction, having this call here guarantees that
   // the destructor of static PosixEnv will go first, then the
   // the singletons of ThreadLocalPtr.
+  /* 这个函数其实就是定义了一个static的StaticMeta类型变量 */
   ThreadLocalPtr::InitSingletons();
   static PosixEnv default_env;
   return &default_env;

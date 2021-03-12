@@ -54,6 +54,7 @@ using std::shared_ptr;
 
 const size_t kDefaultPageSize = 4 * 1024;
 
+/* 一些读写文件的选项 */
 // Options while opening a file to read/write
 struct EnvOptions {
 
@@ -75,6 +76,7 @@ struct EnvOptions {
   // If true, then use O_DIRECT for writing data
   bool use_direct_writes = false;
 
+  /* fallocate为文件预分配物理空间 */
   // If false, fallocate() calls are bypassed
   bool allow_fallocate = true;
 
@@ -95,6 +97,7 @@ struct EnvOptions {
   // WAL writes
   bool fallocate_with_keep_size = true;
 
+  /* compaction过程中预读 */
   // See DBOptions doc
   size_t compaction_readahead_size;
 
@@ -108,6 +111,11 @@ struct EnvOptions {
   RateLimiter* rate_limiter = nullptr;
 };
 
+/*
+ * TODO:
+ * 1. thread_status_updater_ 
+ * 3. static Env* Default();
+ */
 class Env {
  public:
   struct FileAttributes {
@@ -122,6 +130,7 @@ class Env {
 
   virtual ~Env();
 
+  /* 类似于工厂方法吧 */
   // Return a default environment suitable for the current operating
   // system.  Sophisticated users may wish to provide their own Env
   // implementation instead of relying on this default environment.
@@ -366,6 +375,7 @@ class Env {
   virtual void SetBackgroundThreads(int number, Priority pri = LOW) = 0;
   virtual int GetBackgroundThreads(Priority pri = LOW) = 0;
 
+  /* reading here */
   // Enlarge number of background worker threads of a specific thread pool
   // for this environment if it is smaller than specified. 'LOW' is the default
   // pool.
@@ -446,6 +456,9 @@ class Env {
 // constructor to initialize thread_status_updater_.
 ThreadStatusUpdater* CreateThreadStatusUpdater();
 
+/*
+ *  对磁盘文件的封装，提供顺序读接口
+ */
 // A file abstraction for reading sequentially through a file
 class SequentialFile {
  public:

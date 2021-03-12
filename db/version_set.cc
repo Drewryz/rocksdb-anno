@@ -2677,8 +2677,19 @@ void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
 
 /*
  * version_set recover
- * 1. 从CURRENT文件获取当前manifest文件
- * 2. 
+ * 1. 从CURRENT文件获取当前manifest文件名
+ * 2. 创建default ColumnFamilyData
+ * 3. 读manifest文件
+ * 4. 
+ * 
+ * 参数：
+ * column_families：一个ColumnFamilyDescriptor集合，表示多个ColumnFamily
+ * 
+ * TODO:
+ * 1. VersionEdit
+ * 2. CreateColumnFamily(default_cf_iter->second, &default_cf_edit)
+ * 3. BaseReferencedVersionBuilder
+ * 5. log::Reader reader(NULL, std::move(manifest_file_reader), &reporter
  */
 Status VersionSet::Recover(
     const std::vector<ColumnFamilyDescriptor>& column_families,
@@ -2716,11 +2727,13 @@ Status VersionSet::Recover(
   ROCKS_LOG_INFO(db_options_->info_log, "Recovering from manifest file: %s\n",
                  manifest_filename.c_str());
 
+  /* manifest文件在磁盘上的路径 */
   manifest_filename = dbname_ + "/" + manifest_filename;
   /* reading here. 2021-3-11-18:14 */
   unique_ptr<SequentialFileReader> manifest_file_reader;
   {
     unique_ptr<SequentialFile> manifest_file;
+
     s = env_->NewSequentialFile(manifest_filename, &manifest_file,
                                 env_->OptimizeForManifestRead(env_options_));
     if (!s.ok()) {
@@ -2746,6 +2759,7 @@ Status VersionSet::Recover(
   uint32_t max_column_family = 0;
   std::unordered_map<uint32_t, BaseReferencedVersionBuilder*> builders;
 
+  /* 创建default ColumnFamilyData */
   // add default column family
   auto default_cf_iter = cf_name_to_options.find(kDefaultColumnFamilyName);
   if (default_cf_iter == cf_name_to_options.end()) {
@@ -2768,6 +2782,8 @@ Status VersionSet::Recover(
                        true /*checksum*/, 0 /*initial_offset*/, 0);
     Slice record;
     std::string scratch;
+    /* reading here. 2021-3-12-19:31 */
+    /* 读manifest文件 */
     while (reader.ReadRecord(&record, &scratch) && s.ok()) {
       VersionEdit edit;
       s = edit.DecodeFrom(record);

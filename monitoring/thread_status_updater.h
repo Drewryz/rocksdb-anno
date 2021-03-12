@@ -60,6 +60,7 @@ struct ConstantColumnFamilyInfo {
 #endif  // ROCKSDB_USING_THREAD_STATUS
 };
 
+/* 用于记录单个线程的状态信息 */
 // the internal data-structure that is used to reflect the current
 // status of a thread using a set of atomic pointers.
 struct ThreadStatusData {
@@ -93,6 +94,10 @@ struct ThreadStatusData {
 #endif  // ROCKSDB_USING_THREAD_STATUS
 };
 
+
+/*
+ * 存储和更新当前线程的状态
+ */
 // The class that stores and updates the status of the current thread
 // using a thread-local ThreadStatusData.
 //

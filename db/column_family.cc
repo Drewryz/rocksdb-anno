@@ -1045,6 +1045,13 @@ size_t ColumnFamilySet::NumberOfColumnFamilies() const {
   return column_families_.size();
 }
 
+/*
+ * 创建新的columnFamilyData
+ * 
+ * TOOD:
+ * 1. new ColumnFamilyData
+ * 2. 
+ */
 // under a DB mutex AND write thread
 ColumnFamilyData* ColumnFamilySet::CreateColumnFamily(
     const std::string& name, uint32_t id, Version* dummy_versions,
@@ -1056,6 +1063,9 @@ ColumnFamilyData* ColumnFamilySet::CreateColumnFamily(
   column_families_.insert({name, id});
   column_family_data_.insert({id, new_cfd});
   max_column_family_ = std::max(max_column_family_, id);
+  /*
+   * 将新建的ColumnFamilyData对象链接到链表末尾
+   */
   // add to linked list
   new_cfd->next_ = dummy_cfd_;
   auto prev = dummy_cfd_->prev_;

@@ -801,6 +801,7 @@ class VersionSet {
   friend class Version;
   friend class DBImpl;
 
+  /* 用于报告一些信息，参见log::Reader类 */
   struct LogReporter : public log::Reader::Reporter {
     Status* status;
     virtual void Corruption(size_t bytes, const Status& s) override {
