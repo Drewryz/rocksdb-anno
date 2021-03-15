@@ -167,6 +167,9 @@ struct LevelFilesBrief {
   }
 };
 
+/*
+ * 每个manifest的log_entry表示一个VersionEdit 
+ */
 class VersionEdit {
  public:
   VersionEdit() { Clear(); }

@@ -268,6 +268,18 @@ const char* VersionEdit::DecodeNewFile4From(Slice* input) {
   return nullptr;
 }
 
+/*
+ * 从manifest日志文件读取的一条log_entry中构建一个VersionEdit对象，参见：
+ * https://github.com/facebook/rocksdb/wiki/MANIFEST
+ * 
+ * 每条log_entry是一个二进制字节流，该字节流总共由两部分组成：
+ * Record ID: 表示当前这条log的类型
+ * Variable size record data: 实际的log data
++-------------+------ ......... ----------+
+| Record ID   | Variable size record data |
++-------------+------ .......... ---------+
+<-- Var32 --->|<-- varies by type       -->
+ */
 Status VersionEdit::DecodeFrom(const Slice& src) {
   Clear();
   Slice input = src;

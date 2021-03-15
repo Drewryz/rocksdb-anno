@@ -829,6 +829,7 @@ class VersionSet {
   Env* const env_;
   const std::string dbname_;
   const ImmutableDBOptions* const db_options_;
+  /* 下一个SST文件的编号 */
   std::atomic<uint64_t> next_file_number_;
   uint64_t manifest_file_number_;
   uint64_t options_file_number_;
@@ -837,6 +838,7 @@ class VersionSet {
   std::atomic<uint64_t> last_sequence_;
   // The last seq with which a writer has written/will write.
   std::atomic<uint64_t> last_to_be_written_sequence_;
+  /* ???? */
   uint64_t prev_log_number_;  // 0 or backing store for memtable being compacted
 
   // Opened lazily

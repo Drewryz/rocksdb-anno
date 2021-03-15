@@ -551,6 +551,13 @@ class LevelFileIteratorState : public TwoLevelIteratorState {
   RangeDelAggregator* range_del_agg_;
 };
 
+/*
+ * 该类为一个ColumnFamilyData对象，wrap一个VersionBuilder对象，用于编辑该ColumnFamilyData对象的
+ * 当前Version
+ * 
+ * TOOD:
+ * 1. new VersionBuilder
+ */
 // A wrapper of version builder which references the current version in
 // constructor and unref it in the destructor.
 // Both of the constructor and destructor need to be called inside DB Mutex.
@@ -2676,7 +2683,17 @@ void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
 }
 
 /*
- * version_set recover
+ * version_set recover。
+ * manifest log中的每条VersionEdit，都是一个Version，eg:
+ * BaseVersion -> VersionEdit1 -> VersionEdit2 -> VersionEdit3
+ * 上面一共有4个Version。但是Revocer完成后每个columu family都只有一个最终的Version。
+ * 这个过程可以类比WAL的回放，每一条WAL日志回放后，数据库都处于唯一确定的状态，但是数据
+ * 库重启时，会将将所有的WAL进行apply，得到最终的数据状态。
+ * manifest log可能会很长，为了避免生成过多的中间Version变量，rocksdb采用了VersionBuilder类，
+ * 用于生成最终的Version。
+ * Revocer完成后每个columu family都只有一个最终的Version，但是随着数据库的运行，会有文件的增删，所以
+ * 会有更多的Version产生，此时会通过链表链起来
+ * 
  * 1. 从CURRENT文件获取当前manifest文件名
  * 2. 创建default ColumnFamilyData
  * 3. 读manifest文件
@@ -2690,6 +2707,8 @@ void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
  * 2. CreateColumnFamily(default_cf_iter->second, &default_cf_edit)
  * 3. BaseReferencedVersionBuilder
  * 5. log::Reader reader(NULL, std::move(manifest_file_reader), &reporter
+ * 6. builder->second->version_builder()->Apply(&edit)
+ * 8. manifest有没有checkpoint？
  */
 Status VersionSet::Recover(
     const std::vector<ColumnFamilyDescriptor>& column_families,
@@ -2698,6 +2717,11 @@ Status VersionSet::Recover(
   for (auto cf : column_families) {
     cf_name_to_options.insert({cf.name, cf.options});
   }
+
+  /*
+   * column_families_not_found记录所有出现在manifest中，但是用户没有指定option的
+   * column-family
+   */
   // keeps track of column families in manifest that were not found in
   // column families parameters. if those column families are not dropped
   // by subsequent manifest records, Recover() will return failure status
@@ -2757,6 +2781,9 @@ Status VersionSet::Recover(
   uint64_t log_number = 0;
   uint64_t previous_log_number = 0;
   uint32_t max_column_family = 0;
+  /*
+   * builders出了记录default-column-family外， 还记录了所有出现在manifest中，并且用户指定了option的column-family
+   */
   std::unordered_map<uint32_t, BaseReferencedVersionBuilder*> builders;
 
   /* 创建default ColumnFamilyData */
@@ -2783,7 +2810,9 @@ Status VersionSet::Recover(
     Slice record;
     std::string scratch;
     /* reading here. 2021-3-12-19:31 */
-    /* 读manifest文件 */
+    /*
+     * 每读一条manifestlog，构建一个VersionEdit对象
+     */
     while (reader.ReadRecord(&record, &scratch) && s.ok()) {
       VersionEdit edit;
       s = edit.DecodeFrom(record);
@@ -2810,6 +2839,11 @@ Status VersionSet::Recover(
       ColumnFamilyData* cfd = nullptr;
 
       if (edit.is_column_family_add_) {
+        /*
+         * 如果是column family add类型的version edit
+         * 1. 如果用户没有指定对应的column family的配置，那么加入column_families_not_found
+         * 2. 否则create对应的column family，并将其加入builders中
+         */
         if (cf_in_builders || cf_in_not_found) {
           s = Status::Corruption(
               "Manifest adding the same column family twice");
@@ -2826,6 +2860,10 @@ Status VersionSet::Recover(
               {edit.column_family_, new BaseReferencedVersionBuilder(cfd)});
         }
       } else if (edit.is_column_family_drop_) {
+        /*
+         * 如果是column family drop类型的version edit：
+         * 将builders和column_family_set_或者column_families_not_found对应的column family删除
+         */
         if (cf_in_builders) {
           auto builder = builders.find(edit.column_family_);
           assert(builder != builders.end());
@@ -2847,6 +2885,10 @@ Status VersionSet::Recover(
           break;
         }
       } else if (!cf_in_not_found) {
+        /*
+         * 如果既不是column family add VersionEdit，又不是column family drop VersionEdit，
+         * 那就是文件的删除/添加VersionEdit
+         */
         if (!cf_in_builders) {
           s = Status::Corruption(
               "Manifest record referencing unknown column family");
@@ -2856,6 +2898,7 @@ Status VersionSet::Recover(
         cfd = column_family_set_->GetColumnFamily(edit.column_family_);
         // this should never happen since cf_in_builders is true
         assert(cfd != nullptr);
+        /* ？？？ */
         if (edit.max_level_ >= cfd->current()->storage_info()->num_levels()) {
           s = Status::InvalidArgument(
               "db has more levels than options.num_levels");
@@ -2870,6 +2913,7 @@ Status VersionSet::Recover(
         builder->second->version_builder()->Apply(&edit);
       }
 
+      /* 如果是column family add VersionEdit或者是文件的删除/添加VersionEdit */
       if (cfd != nullptr) {
         if (edit.has_log_number_) {
           if (cfd->GetLogNumber() > edit.log_number_) {
@@ -2909,8 +2953,10 @@ Status VersionSet::Recover(
         last_sequence = edit.last_sequence_;
         have_last_sequence = true;
       }
-    }
+    } // end while
   }
+
+  /* 以上manifest log读取完毕 */
 
   if (s.ok()) {
     if (!have_next_file) {
@@ -2944,6 +2990,9 @@ Status VersionSet::Recover(
         list_of_not_found);
   }
 
+  /*
+   * reading here. 2021-3-15-21:33 
+   */
   if (s.ok()) {
     for (auto cfd : *column_family_set_) {
       if (cfd->IsDropped()) {
@@ -3760,6 +3809,22 @@ void VersionSet::GetObsoleteFiles(std::vector<FileMetaData*>* files,
   obsolete_files_.swap(pending_files);
 }
 
+/*
+ * 根据VersionEdit和column family option创建一个column family对象
+ * 1. 创建一个dummy version, 用于记录创建的column family对象的version链表
+ * 2. column_family_set_->CreateColumnFamily
+ * 3. 为创建的column family对象创建一个当前Version对象
+ * 4. CalculateBaseBytes？？
+ * 5. 为创建的column family对象创建memetable
+ * 6. 为创建的column family对象设置log_number
+ *    log_number表示当前column family需要从编号为log_number的wal开始恢复数据
+ * 
+ * TODO:
+ * 1. Version类
+ * 2. CalculateBaseBytes
+ * 3. CreateNewMemtable
+ * 4. AppendVersion
+ */
 ColumnFamilyData* VersionSet::CreateColumnFamily(
     const ColumnFamilyOptions& cf_options, VersionEdit* edit) {
   assert(edit->is_column_family_add_);
