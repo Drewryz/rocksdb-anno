@@ -844,6 +844,7 @@ class VersionSet {
   // Opened lazily
   unique_ptr<log::Writer> descriptor_log_;
 
+  /* 所有的column family共用这个变量 */
   // generates a increasing version number for every new version
   uint64_t current_version_number_;
 

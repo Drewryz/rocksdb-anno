@@ -296,6 +296,13 @@ Status DBImpl::Directories::SetDirectories(
  * WAL数据恢复
  * 调用函数：Status CompactedDBImpl::Init(const Options& options)
  * Status s = Recover({cf}, true , false, true); 
+ * 流程：
+ * 1. version_set recover, versions_->Recover
+ * 2. 检查version_set记录的meta文件是否存在以及是否size和version中记录的一致
+ * 3. 
+ * 
+ * TODO:
+ * 1. 非read_only逻辑
  */
 Status DBImpl::Recover(
     const std::vector<ColumnFamilyDescriptor>& column_families, bool read_only,

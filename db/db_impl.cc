@@ -2123,6 +2123,10 @@ void DBImpl::GetColumnFamilyMetaData(
 
 #endif  // ROCKSDB_LITE
 
+/*
+ * version_set recover完成以后，检查version_set记录的meta文件
+ * 是否存在以及是否size和version中记录的一致 
+ */
 Status DBImpl::CheckConsistency() {
   mutex_.AssertHeld();
   std::vector<LiveFileMetaData> metadata;

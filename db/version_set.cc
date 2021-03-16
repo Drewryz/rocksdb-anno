@@ -2691,13 +2691,17 @@ void VersionSet::LogAndApplyHelper(ColumnFamilyData* cfd,
  * 库重启时，会将将所有的WAL进行apply，得到最终的数据状态。
  * manifest log可能会很长，为了避免生成过多的中间Version变量，rocksdb采用了VersionBuilder类，
  * 用于生成最终的Version。
- * Revocer完成后每个columu family都只有一个最终的Version，但是随着数据库的运行，会有文件的增删，所以
- * 会有更多的Version产生，此时会通过链表链起来
+ * Recover完成后每个columu family都只有一个最终的Version，但是随着数据库的运行，会有文件的增删，所以
+ * 会有更多的Version产生，此时会通过链表链起来, 参见：https://www.cnblogs.com/coguin/p/11405082.html
  * 
+ * 该函数具体步骤如下：
  * 1. 从CURRENT文件获取当前manifest文件名
  * 2. 创建default ColumnFamilyData
  * 3. 读manifest文件
- * 4. 
+ * 4. 每读一条manifestlog，构建一个VersionEdit对象，
+ *    并根据VersionEdit对象类型，构建对应的Column family data 或者 VersionBuilder
+ * 5. 获取每个column family的version builder，然后将其固化为Version对象，最后加入
+ *    Column family data的version链表中
  * 
  * 参数：
  * column_families：一个ColumnFamilyDescriptor集合，表示多个ColumnFamily
@@ -2999,6 +3003,7 @@ Status VersionSet::Recover(
         continue;
       }
       assert(cfd->initialized());
+      /* 获取每个column family的version builder */
       auto builders_iter = builders.find(cfd->GetID());
       assert(builders_iter != builders.end());
       auto* builder = builders_iter->second->version_builder();
