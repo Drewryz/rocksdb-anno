@@ -120,6 +120,8 @@ Status DBImpl::WriteWithCallback(const WriteOptions& write_options,
  * 6. writer->batch->HasMerge()
  * 7. InternalStats* default_cf_internal_stats_
  * 8. WriteBatchInternal::InsertInto
+ * 9. PreprocessWrite
+ * 10. WriteToWAL
  * 
  * !!! pipeline写，InsertInto，write_batch, 2PC
  */
@@ -147,7 +149,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     return WriteImplWALOnly(write_options, my_batch, callback, log_used,
                             log_ref);
   }
-  /* TODO: ??? */
+  /*
+   * 所谓的pipeline写入，指的是写完WAL后返回, 而不是写完WAL+memtable后返回，具体流程后面分析
+   */
   if (immutable_db_options_.enable_pipelined_write) {
     return PipelinedWriteImpl(write_options, my_batch, callback, log_used,
                               log_ref, disable_memtable);

@@ -185,6 +185,10 @@ class WriteBatchInternal {
   static size_t AppendedByteSize(size_t leftByteSize, size_t rightByteSize);
 };
 
+/*
+ * RAII类，用处不大，可以忽略。
+ * 这个类只是当writebatch的size超限时，恢复上一个状态 
+ */
 // LocalSavePoint is similar to a scope guard
 class LocalSavePoint {
  public:

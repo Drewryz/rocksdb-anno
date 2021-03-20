@@ -122,6 +122,15 @@ class WriteThread {
     Iterator end() const { return Iterator(nullptr, nullptr); }
   };
 
+  /*
+   * rocksdb将每个将要写入的WriteBatch对象封装为一个Writer对象，其中记录了：
+   * + 本次write的wal配置，比如是否要做sync，要写入的wal日志编号等等
+   * + 本次要write的数据，即WriteBatch对象
+   * + 本次write所属的write group
+   * + 本次write的第一个数据对象的SN
+   * + 前置writer
+   * + 后置writer
+   */
   // Information kept for every waiting writer.
   struct Writer {
     WriteBatch* batch;
