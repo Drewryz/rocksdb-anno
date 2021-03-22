@@ -316,6 +316,9 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
     if (!concurrent_prepare_) {
       if (status.ok() && !write_options.disableWAL) {
         PERF_TIMER_GUARD(write_wal_time);
+        /*
+         *  log_used: null
+         */
         status = WriteToWAL(write_group, log_writer, log_used, need_log_sync,
                             need_log_dir_sync, last_sequence + 1);
       }
@@ -666,6 +669,15 @@ void DBImpl::MemTableInsertStatusCheck(const Status& status) {
   }
 }
 
+
+/*
+ *  leader写wal与memtable之前的预处理
+ *  1. 如果当前写入的wal日志已经超过了WAL file最大size，则HandleWALFull
+ *  2. ...
+ *  TODO: 
+ *  1. HandleWALFull
+ *  2. 这个函数跳过，看完写memtable再看这个函数
+ */
 Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
                                bool* need_log_sync,
                                WriteContext* write_context) {
@@ -804,7 +816,7 @@ Status DBImpl::WriteToWAL(const WriteBatch& merged_batch,
 
 /*
  * 写WAL。
- * sequence: 传入参数。当前write batch group所属的LSN
+ * sequence: 传入参数。当前write batch group所属的LSN。该序号是当前整个数据库系统的下一个LSN
  * log_used: 传出参数。当前write batch group写入的WAL文件编号
  * 
  * 1. 将一个batch writer group所有的writer合并成一个writer，MergeBatch
@@ -816,8 +828,8 @@ Status DBImpl::WriteToWAL(const WriteBatch& merged_batch,
  * 7. 记录一些状态数据
  * 
  * TODO:
- * 1. logfile_number_目测是wal日志文件的编号
- * 2. 
+ * 1. 为什么要将本组的所有writer的数据merge起来？
+ *    仅仅是为了写WAL，这里会引入拷贝开销。需要核实最终写入WAL文件的过程。
  */
 Status DBImpl::WriteToWAL(const WriteThread::WriteGroup& write_group,
                           log::Writer* log_writer, uint64_t* log_used,
@@ -1028,6 +1040,10 @@ Status DBImpl::HandleWriteBufferFull(WriteContext* write_context) {
   return status;
 }
 
+/*
+ * WAL file最大size，默认由用户指定，如果用户没有指定，则将其设置为
+ * max_total_in_memory_state_的4倍
+ */
 uint64_t DBImpl::GetMaxTotalWalSize() const {
   mutex_.AssertHeld();
   return mutable_db_options_.max_total_wal_size == 0

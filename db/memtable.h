@@ -88,6 +88,7 @@ class MemTable {
                            const Slice& key) const override;
   };
 
+  /* reading here. 2021-3-22-12:03 */
   // MemTables are reference counted.  The initial reference count
   // is zero and the caller must call Ref() at least once.
   //
@@ -358,6 +359,12 @@ class MemTable {
   KeyComparator comparator_;
   const MemTableOptions moptions_;
   int refs_;
+  /*
+   * RocksDB有自己的内存分配机制，称为Arena. Arena由固定的inline_block_和动态的blocks_组成。 
+   * inline_block_固定为2048bytes, blocks_由一系列的block组成，这些block大小一般为KBlockSize, 
+   * 但从arena申请较大内存时(> KBlockSize/4)单独分配一个所申请大小的block. 
+   * KBlockSize由参数arena_block_size指定，arena_block_size 不指定时默认为write_buffer_size的1/8. 
+   */
   const size_t kArenaBlockSize;
   AllocTracker mem_tracker_;
   ConcurrentArena arena_;

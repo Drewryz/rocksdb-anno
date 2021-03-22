@@ -176,6 +176,10 @@ class WriteBatch : public WriteBatchBase {
   Status PopSavePoint() override;
 
   /* 支持遍历batch的content？？？ */
+  /*
+   * 封装了数据处理(增删改)的handler
+   * MemTableInserter继承了该类 
+   */
   // Support for iterating over the contents of a batch.
   class Handler {
    public:

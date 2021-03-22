@@ -11,6 +11,7 @@
 
 namespace rocksdb {
 
+/* 将cfd插入链表(头插法) */
 void FlushScheduler::ScheduleFlush(ColumnFamilyData* cfd) {
 #ifndef NDEBUG
   std::lock_guard<std::mutex> lock(checking_mutex_);
@@ -31,6 +32,7 @@ void FlushScheduler::ScheduleFlush(ColumnFamilyData* cfd) {
 #endif  // __clang_analyzer__
 }
 
+/* 从链表头开始取一个元素 */
 ColumnFamilyData* FlushScheduler::TakeNextColumnFamily() {
 #ifndef NDEBUG
   std::lock_guard<std::mutex> lock(checking_mutex_);

@@ -14,6 +14,9 @@ namespace rocksdb {
 
 class ColumnFamilyData;
 
+/*
+ * 该类其实就是装有元素类型为ColumnFamilyData的链表
+ */
 // Unless otherwise noted, all methods on FlushScheduler should be called
 // only with the DB mutex held or from a single-threaded recovery context.
 class FlushScheduler {
@@ -38,6 +41,7 @@ class FlushScheduler {
     Node* next;
   };
 
+  /* 链表头 */
   std::atomic<Node*> head_;
 #ifndef NDEBUG
   std::mutex checking_mutex_;

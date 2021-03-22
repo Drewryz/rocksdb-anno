@@ -526,6 +526,9 @@ class ColumnFamilySet {
   WriteController* write_controller_;
 };
 
+/*
+ * 对ColumnFamilySet的封装
+ */
 // We use ColumnFamilyMemTablesImpl to provide WriteBatch a way to access
 // memtables of different column families (specified by ID in the write batch)
 class ColumnFamilyMemTablesImpl : public ColumnFamilyMemTables {

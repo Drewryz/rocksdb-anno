@@ -51,6 +51,7 @@ Status Writer::AddRecord(const Slice& slice) {
   do {
     const int64_t leftover = kBlockSize - block_offset_;
     assert(leftover >= 0);
+    /* 当前block的剩余size比record的header还小，则填充0，开启下一个block */
     if (leftover < header_size) {
       // Switch to a new block
       if (leftover > 0) {

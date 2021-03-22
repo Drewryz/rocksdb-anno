@@ -18,6 +18,9 @@
 
 namespace rocksdb {
 
+/*
+ * 管理memtable的内存分配 
+ */
 class WriteBufferManager {
  public:
   // _buffer_size = 0 indicates no limit. Memory won't be capped.
@@ -56,6 +59,7 @@ class WriteBufferManager {
     return false;
   }
 
+  /* 在cache中保留mem大小的空间 */
   void ReserveMem(size_t mem) {
     if (cache_rep_ != nullptr) {
       ReserveMemWithCache(mem);

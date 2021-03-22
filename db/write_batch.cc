@@ -362,7 +362,10 @@ Status ReadRecordFromWriteBatch(Slice* input, char* tag,
   }
   return Status::OK();
 }
-
+/*
+ * Iterate函数遍历当前write batch的所有kv数据对，
+ * 然后根据操作类型(增删改)调用handler封装的处理逻辑 
+ */
 Status WriteBatch::Iterate(Handler* handler) const {
   Slice input(rep_);
   if (input.size() < WriteBatchInternal::kHeader) {
@@ -955,6 +958,7 @@ public:
       ++sequence_;
       return seek_status;
     }
+    /* reading here. 2021-3-22-15:39 */
 
     MemTable* mem = cf_mems_->GetMemTable();
     auto* moptions = mem->GetMemTableOptions();
@@ -1291,6 +1295,9 @@ public:
   }
 };
 
+/*
+ * 将数据写入memtable 
+ */
 // This function can only be called in these conditions:
 // 1) During Recovery()
 // 2) During Write(), in a single-threaded write thread
@@ -1311,6 +1318,7 @@ Status WriteBatchInternal::InsertInto(WriteThread::WriteGroup& write_group,
       continue;
     }
     SetSequence(w->batch, inserter.sequence());
+    /* log_ref何时初始化的???? */
     inserter.set_log_number_ref(w->log_ref);
     w->status = w->batch->Iterate(&inserter);
     if (!w->status.ok()) {
@@ -1321,7 +1329,11 @@ Status WriteBatchInternal::InsertInto(WriteThread::WriteGroup& write_group,
 }
 
 /*
- * reading here. 2021-3-7-22:04 
+ * reading here. 2021-3-7-22:04
+ * 写memtable。
+ * writer：哪个writer往memtable写数据
+ * sequence：这批数据的起始sequence
+ * memtables：
  */
 Status WriteBatchInternal::InsertInto(WriteThread::Writer* writer,
                                       SequenceNumber sequence,
@@ -1370,9 +1382,6 @@ Status WriteBatchInternal::SetContents(WriteBatch* b, const Slice& contents) {
 
 /*
  * 将src的数据append到dst上
- * TODO:
- * 1. 好像Append不止是wal，还包括所有的数据？
- * reading here. 2021-3-9-12:09
  */
 Status WriteBatchInternal::Append(WriteBatch* dst, const WriteBatch* src,
                                   const bool wal_only) {

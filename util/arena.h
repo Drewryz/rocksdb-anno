@@ -25,6 +25,10 @@
 
 namespace rocksdb {
 
+/*
+ * rocksdb memtable的内存分配器，参见：
+ * http://mysql.taobao.org/monthly/2017/06/08/
+ */
 class Arena : public Allocator {
  public:
   // No copying allowed
@@ -40,6 +44,7 @@ class Arena : public Allocator {
   // page TLB first. If allocation fails, will fall back to normal case.
   explicit Arena(size_t block_size = kMinBlockSize,
                  AllocTracker* tracker = nullptr, size_t huge_page_size = 0);
+  /* 析构函数会清空已经分配的block */
   ~Arena();
 
   char* Allocate(size_t bytes) override;
@@ -59,6 +64,7 @@ class Arena : public Allocator {
   char* AllocateAligned(size_t bytes, size_t huge_page_size = 0,
                         Logger* logger = nullptr) override;
 
+  /* 返回arena已经在使用的内存空间（包括blocks这个数据结构本身所占的空间） */
   // Returns an estimate of the total memory usage of data allocated
   // by the arena (exclude the space allocated but not yet used for future
   // allocations).
@@ -78,9 +84,15 @@ class Arena : public Allocator {
   size_t BlockSize() const override { return kBlockSize; }
 
  private:
+  /*
+   * RocksDB有自己的内存分配机制，称为Arena。
+   * Arena由固定的inline_block_和动态的blocks_组成。 
+   * inline_block_固定为2048bytes 
+   */
   char inline_block_[kInlineSize] __attribute__((__aligned__(sizeof(void*))));
   // Number of bytes allocated in one block
   const size_t kBlockSize;
+  /* 记录所有分配的block */
   // Array of new[] allocated memory blocks
   typedef std::vector<char*> Blocks;
   Blocks blocks_;
@@ -100,7 +112,9 @@ class Arena : public Allocator {
   // memory waste for alignment will be higher if we allocate both types of
   // memory from one direction.
   char* unaligned_alloc_ptr_ = nullptr;
+  /* 指向分配的内存起始地址 */
   char* aligned_alloc_ptr_ = nullptr;
+  /* Arena当前block已分配但未使用的内存，注意不是整个Arena已分配而未使用的内存 */
   // How many bytes left in currently active block?
   size_t alloc_bytes_remaining_ = 0;
 
@@ -111,11 +125,14 @@ class Arena : public Allocator {
   char* AllocateFallback(size_t bytes, bool aligned);
   char* AllocateNewBlock(size_t block_bytes);
 
+  /* 当前arena已经分配的内存空间 */
   // Bytes of memory in blocks allocated so far
   size_t blocks_memory_ = 0;
+  /* 记录一些信息，跳过 */
   AllocTracker* tracker_;
 };
 
+/* 分配size为bytes的内存，并返回这段内存的首地址 */
 inline char* Arena::Allocate(size_t bytes) {
   // The semantics of what to return are a bit messy if we allow
   // 0-byte allocations, so we disallow them here (we don't need

@@ -140,6 +140,7 @@ class WriteThread {
     bool disable_memtable;
     /* 记录当前batch要写入的wal日志文件编号 */
     uint64_t log_used;  // log number that this batch was inserted into
+    /* TODO: log_ref哪里初始化的 */
     uint64_t log_ref;   // log number that memtable insert should reference
     WriteCallback* callback;
     bool made_waitable;          // records lazy construction of mutex and cv

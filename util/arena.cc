@@ -88,6 +88,7 @@ Arena::~Arena() {
 }
 
 char* Arena::AllocateFallback(size_t bytes, bool aligned) {
+  /* 从arena申请较大内存时(> KBlockSize/4)单独分配一个所申请大小的block */
   if (bytes > kBlockSize / 4) {
     ++irregular_block_num;
     // Object is more than a quarter of our block size.  Allocate it separately

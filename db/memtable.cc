@@ -417,6 +417,11 @@ MemTable::MemTableStats MemTable::ApproximateStats(const Slice& start_ikey,
   return {entry_count * (data_size / n), entry_count};
 }
 
+/*
+ * 添加entry到memtable中。
+ * s： 记录了entry的SN
+ * allow_concurrent：为false，则不需要考虑竞态问题
+ */
 void MemTable::Add(SequenceNumber s, ValueType type,
                    const Slice& key, /* user key */
                    const Slice& value, bool allow_concurrent,
@@ -433,6 +438,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
                                internal_key_size + VarintLength(val_size) +
                                val_size;
   char* buf = nullptr;
+  /* reading here.2021-3-22-17:48 ？？？？ */
   std::unique_ptr<MemTableRep>& table =
       type == kTypeRangeDeletion ? range_del_table_ : table_;
   KeyHandle handle = table->Allocate(encoded_len, &buf);
