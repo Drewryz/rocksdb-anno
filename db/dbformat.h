@@ -256,6 +256,13 @@ inline uint64_t GetInternalKeySeqno(const Slice& internal_key) {
 }
 
 
+/*
+ * 整体key的布局：
+ * key_len, key_data, sequence_type
+ * memtable_key: 将上面三个元素封装成一个Slice返回
+ * internal_key: 将key_data和sequence_type封装成一个Slice返回
+ * user_key: 只返回key_data
+ */
 // A helper class useful for DBImpl::Get()
 class LookupKey {
  public:

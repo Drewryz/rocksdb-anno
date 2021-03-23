@@ -924,6 +924,7 @@ class DBImpl : public DB {
   // are protected by locking both mutex_ and log_write_mutex_, and reads must
   // be under either mutex_ or log_write_mutex_.
   std::deque<LogFileNumberSize> alive_log_files_;
+  /* 所有已经写入但是未做sync的wal日志文件 */
   // Log files that aren't fully synced, and the current log file.
   // Synchronization:
   //  - push_back() is done from write_thread_ with locked mutex_ and
@@ -1000,7 +1001,7 @@ class DBImpl : public DB {
   // Note: This is to protect memtable and compaction. If the batch only writes
   // to the WAL its size need not to be included in this.
   uint64_t last_batch_group_size_;
-
+  /* 一个装有元素类型为ColumnFamilyData的链表，记录了所有需要刷memtable的ColumnFamily  */
   FlushScheduler flush_scheduler_;
 
   SnapshotList snapshots_;

@@ -154,6 +154,7 @@ void InternalKeyComparator::FindShortSuccessor(std::string* key) const {
   }
 }
 
+// key_len, key_data, sequence_type
 LookupKey::LookupKey(const Slice& _user_key, SequenceNumber s) {
   size_t usize = _user_key.size();
   size_t needed = usize + 13;  // A conservative estimate

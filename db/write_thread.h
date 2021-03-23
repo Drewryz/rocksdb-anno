@@ -384,7 +384,7 @@ class WriteThread {
   const bool allow_concurrent_memtable_write_;
 
   /*
-   * pipelined(流水线)写入方式，默认的写入方式中，一个batch的需要完成WAL之后，再完成Memtable的写入才选出下一个Leader.
+   * pipelined(流水线)写入方式，默认的写入方式中，一个batch需要完成WAL，再完成Memtable的写入才选出下一个Leader.
    * 而Pipelined写入中不需要等待Memtable写入完成，即当WAL写入完成之后，即可选出下一个Leader继续完成下一个batch的写入从而达到Pipelined的效果.
    * 参见：https://zhuanlan.zhihu.com/p/45666093
    */

@@ -821,6 +821,9 @@ Status WriteBatch::PopSavePoint() {
   return Status::OK();
 }
 
+/*
+ * 封装了数据处理(增删改)的handler 
+ */
 class MemTableInserter : public WriteBatch::Handler {
   /* C++默认访问权限是私有的 */
   /* LSN */
@@ -962,10 +965,24 @@ public:
 
     MemTable* mem = cf_mems_->GetMemTable();
     auto* moptions = mem->GetMemTableOptions();
+    /*
+     * inplace_update_support是一个配置项由用户指定
+     * reading here. 2021-3-22-21:39
+     */
     if (!moptions->inplace_update_support) {
+      /* get_post_process_info？？？ */
       mem->Add(sequence_, kTypeValue, key, value, concurrent_memtable_writes_,
                get_post_process_info(mem));
     } else if (moptions->inplace_callback == nullptr) {
+      /*
+       * 如果采用原地更新的话，那么就不能支持多writer并发写了。我想大致的原因应该是这样的：
+       * 如果不是原地更新的话，那么同一个key可能会有多个版本：
+       * (keyX, sequence1, val1), (keyX, sequence2, val2), (keyX, sequence3, val3)
+       * 多个writer并发插数据到跳表的时候，一定能够保证，对于相同的key，sequence越大的排在跳表的后面，
+       * 这可以保证mvcc或者事务的正确性。
+       * 如果是原地更新，那么同一个key在跳表中只对应一个节点，多writer并发写的时候，无法保证sequence最大的
+       * writer最后写入相关的节点。
+       */
       assert(!concurrent_memtable_writes_);
       mem->Update(sequence_, key, value);
       RecordTick(moptions->statistics, NUMBER_KEYS_UPDATED);
@@ -1171,6 +1188,9 @@ public:
     return Status::OK();
   }
 
+  /*
+   * 如果Memtable满了，则将memtable对应的ColumnFamily加入FlushScheduler链表中，等待后台线程处理 
+   */
   void CheckMemtableFull() {
     if (flush_scheduler_ != nullptr) {
       auto* cfd = cf_mems_->current();

@@ -34,6 +34,7 @@
 #include "util/memory_usage.h"
 #include "util/murmurhash.h"
 #include "util/mutexlock.h"
+#include <iostream>
 
 namespace rocksdb {
 
@@ -132,6 +133,11 @@ size_t MemTable::ApproximateMemoryUsage() {
   return total_usage;
 }
 
+/*
+ * 根据内存使用情况判断当前memtable是否需要做flush
+ * TODO: 
+ * 1. return arena_.AllocatedAndUnused() < kArenaBlockSize / 4;
+ */
 bool MemTable::ShouldFlushNow() const {
   // In a lot of times, we cannot allocate arena blocks that exactly matches the
   // buffer size. Thus we have to decide if we should over-allocate or
@@ -191,6 +197,7 @@ bool MemTable::ShouldFlushNow() const {
   return arena_.AllocatedAndUnused() < kArenaBlockSize / 4;
 }
 
+/* 将memtable的状态从FLUSH_NOT_REQUESTED更新为FLUSH_REQUESTED */
 void MemTable::UpdateFlushState() {
   auto state = flush_state_.load(std::memory_order_relaxed);
   if (state == FLUSH_NOT_REQUESTED && ShouldFlushNow()) {
@@ -419,8 +426,26 @@ MemTable::MemTableStats MemTable::ApproximateStats(const Slice& start_ikey,
 
 /*
  * 添加entry到memtable中。
- * s： 记录了entry的SN
- * allow_concurrent：为false，则不需要考虑竞态问题
+ * s: 记录了entry的SN
+ * allow_concurrent: 为false，则不需要考虑竞态问题
+ * post_process_info: ???
+ * 步骤如下：
+ * 1. 计算编码后key和value的size，然后从arean处申请内存
+ * 2. 将key、sequence和类型、value，分别拷贝到申请的内存
+ * 3. 如果不是并发写memtable模式:
+ *    1). 将数据插入实际的数据结构
+ *    2). 更新一些计数器
+ *    3). prefix_bloom_??
+ *    4). 更新first_seqno_和earliest_seqno_
+ *    5). 更新memtable的flush状态
+ * 4. 如果是并发写:
+ *    1). 过程与非并发写大致相同，不过调用的是skiplist的InsertConcurrently接口
+ * 
+ * TODO:
+ * 1. const SliceTransform* insert_with_hint_prefix_extractor_
+ * 2. InsertWithHint
+ * 3. std::unique_ptr<DynamicBloom> prefix_bloom_
+ * 4. Insert写单个节点，数据排布是什么样的
  */
 void MemTable::Add(SequenceNumber s, ValueType type,
                    const Slice& key, /* user key */
@@ -438,7 +463,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
                                internal_key_size + VarintLength(val_size) +
                                val_size;
   char* buf = nullptr;
-  /* reading here.2021-3-22-17:48 ？？？？ */
+  /* 这里rocksdb是基于什么考量，对删除操作使用特定的memtable */
   std::unique_ptr<MemTableRep>& table =
       type == kTypeRangeDeletion ? range_del_table_ : table_;
   KeyHandle handle = table->Allocate(encoded_len, &buf);
@@ -454,6 +479,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
   memcpy(p, value.data(), val_size);
   assert((unsigned)(p + val_size - buf) == (unsigned)encoded_len);
   if (!allow_concurrent) {
+    // ?????
     // Extract prefix for insert with hint.
     if (insert_with_hint_prefix_extractor_ != nullptr &&
         insert_with_hint_prefix_extractor_->InDomain(key_slice)) {
@@ -474,6 +500,7 @@ void MemTable::Add(SequenceNumber s, ValueType type,
                          std::memory_order_relaxed);
     }
 
+    /* ??? */
     if (prefix_bloom_) {
       assert(prefix_extractor_);
       prefix_bloom_->Add(prefix_extractor_->Transform(key));
@@ -699,16 +726,26 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
   return found_final_value;
 }
 
+/*
+ * 更新value。key可能在memtable中，也可能不在，所以需要先判断 
+ */
 void MemTable::Update(SequenceNumber seq,
                       const Slice& key,
                       const Slice& value) {
+  /*
+   * 这里有问题：
+   * 在跳表中，搜索(key_len, key_data, sequence_type)组成的key，怎么可能搜索到呢？
+   * 因为对于用户交互层来说，每个记录的sequence都是不同的，所以不可能存在由(key_len, key_data, sequence_type)组成的相同的key。
+   * 经过单步跟踪发现，对于相同的key_data, 不同的sequence，确实搜索到了。所以，尽管向跳表传入的是个3元组，但实际上跳表只搜索key_data本身。
+   */
   LookupKey lkey(key, seq);
   Slice mem_key = lkey.memtable_key();
 
   std::unique_ptr<MemTableRep::Iterator> iter(
       table_->GetDynamicPrefixIterator());
   iter->Seek(lkey.internal_key(), mem_key.data());
-
+  std::cout << mem_key.data() << " !!! " << strlen(mem_key.data()) <<std::endl;
+  /* reading here. 2021-3-23-16:22 */
   if (iter->Valid()) {
     // entry format is:
     //    key_length  varint32

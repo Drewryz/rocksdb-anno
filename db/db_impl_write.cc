@@ -178,6 +178,7 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   write_thread_.JoinBatchGroup(&w);
   /*
    * reading here. 2021-3-7-18:46 
+   * reading here. 2021-3-23-18:25
    */
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group
@@ -677,6 +678,7 @@ void DBImpl::MemTableInsertStatusCheck(const Status& status) {
  *  TODO: 
  *  1. HandleWALFull
  *  2. 这个函数跳过，看完写memtable再看这个函数
+ *  reading here. 2021-3-23-21:30
  */
 Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
                                bool* need_log_sync,
@@ -826,10 +828,6 @@ Status DBImpl::WriteToWAL(const WriteBatch& merged_batch,
  * 5. 如果需要sync，则将所有log做sync。将所有log做sync的原因是为了避免日志空洞
  * 6. 清空tmp_batch_
  * 7. 记录一些状态数据
- * 
- * TODO:
- * 1. 为什么要将本组的所有writer的数据merge起来？
- *    仅仅是为了写WAL，这里会引入拷贝开销。需要核实最终写入WAL文件的过程。
  */
 Status DBImpl::WriteToWAL(const WriteThread::WriteGroup& write_group,
                           log::Writer* log_writer, uint64_t* log_used,

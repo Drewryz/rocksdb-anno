@@ -695,6 +695,9 @@ Status DBImpl::SyncWAL() {
   return status;
 }
 
+/*
+ * ?????
+ */
 void DBImpl::MarkLogsSynced(
     uint64_t up_to, bool synced_dir, const Status& status) {
   mutex_.AssertHeld();

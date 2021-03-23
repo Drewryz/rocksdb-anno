@@ -51,6 +51,10 @@ class Logger;
 
 typedef void* KeyHandle;
 
+/*
+ * 规定了memtable后备存储结构的接口。也就是说如果要自定义一个数据结构给memtable使用，那么
+ * 自定义的数据结构要实现MemTableRep规定的接口
+ */
 class MemTableRep {
  public:
   // KeyComparator provides a means to compare keys, which are internal keys
@@ -211,6 +215,9 @@ class MemTableRep {
   Allocator* allocator_;
 };
 
+/*
+ * memtable工厂在创建options的时候就被创建了 
+ */
 // This is the base class for all factories that are used by RocksDB to create
 // new MemTableRep objects
 class MemTableRepFactory {
@@ -234,6 +241,14 @@ class MemTableRepFactory {
   virtual bool IsInsertConcurrentlySupported() const { return false; }
 };
 
+/*
+ * SkipListFactory对象初始化调用栈
+#0  rocksdb::SkipListFactory::SkipListFactory (this=0x830600, lookahead=0) at /root/code/rocksdb/include/rocksdb/memtablerep.h:250
+#1  0x00007ffff743346f in rocksdb::AdvancedColumnFamilyOptions::AdvancedColumnFamilyOptions (this=0x7fffffffdb58) at /root/code/rocksdb/include/rocksdb/advanced_options.h:481
+#2  0x00007ffff7433a7c in rocksdb::ColumnFamilyOptions::ColumnFamilyOptions (this=0x7fffffffdb58) at /root/code/rocksdb/options/options.cc:99
+#3  0x000000000040bae7 in rocksdb::Options::Options (this=0x7fffffffd990) at /root/code/rocksdb/include/rocksdb/options.h:907
+#4  0x00000000004081af in main () at test.cpp:14
+ */
 // This uses a skip list to store keys. It is the default.
 //
 // Parameters:

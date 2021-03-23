@@ -14,6 +14,9 @@ class SkipListRep : public MemTableRep {
   InlineSkipList<const MemTableRep::KeyComparator&> skip_list_;
   const MemTableRep::KeyComparator& cmp_;
   const SliceTransform* transform_;
+  /*
+   * 关于lookahead_, 参见memtablerep.h:class SkipListFactory 
+   */
   const size_t lookahead_;
 
   friend class LookaheadIterator;

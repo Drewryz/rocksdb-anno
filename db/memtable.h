@@ -350,6 +350,11 @@ class MemTable {
   const MemTableOptions* GetMemTableOptions() const { return &moptions_; }
 
  private:
+  /* 
+   * 猜测：
+   * memtable一开始的状态为FLUSH_NOT_REQUESTED，当其需要flush的时候，则将其设置为FLUSH_REQUESTED，
+   * 最后实际做flush的时候会将状态设置为FLUSH_SCHEDULED
+   */
   enum FlushStateEnum { FLUSH_NOT_REQUESTED, FLUSH_REQUESTED, FLUSH_SCHEDULED };
 
   friend class MemTableIterator;
@@ -372,6 +377,7 @@ class MemTable {
   unique_ptr<MemTableRep> range_del_table_;
   bool is_range_del_table_empty_;
 
+  /* 一些计数器 */
   // Total data size of all data inserted
   std::atomic<uint64_t> data_size_;
   std::atomic<uint64_t> num_entries_;
@@ -386,6 +392,7 @@ class MemTable {
   // memtable is flushed to storage.
   VersionEdit edit_;
 
+  /* 第一个插入当前memtable的记录，初始为0 */
   // The sequence number of the kv that was inserted first
   std::atomic<SequenceNumber> first_seqno_;
 
@@ -406,6 +413,7 @@ class MemTable {
   std::vector<port::RWMutex> locks_;
 
   const SliceTransform* const prefix_extractor_;
+  /* ？？？？？ */
   std::unique_ptr<DynamicBloom> prefix_bloom_;
 
   std::atomic<FlushStateEnum> flush_state_;
