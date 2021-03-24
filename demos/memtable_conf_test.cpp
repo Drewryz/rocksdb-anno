@@ -19,7 +19,10 @@ int main() {
     options.create_if_missing = true;
     options.inplace_update_support = true;
     options.allow_concurrent_memtable_write = false;
+    options.allow_2pc = false;
     std::cout << options.memtable_factory->Name() << std::endl;
+    options.write_buffer_manager = nullptr;
+    options.db_write_buffer_size = 0;
     rocksdb::Status status = rocksdb::DB::Open(options, "./memtable_conf_test", &db);
     std::cout << status.ToString() << std::endl;
     assert(status.ok());

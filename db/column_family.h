@@ -239,6 +239,7 @@ class ColumnFamilyData {
   uint64_t GetTotalSstFilesSize() const;  // REQUIRE: DB mutex held
   void SetMemtable(MemTable* new_mem) { mem_ = new_mem; }
 
+  /* 与OldestLogToKeep对应的wal日志不能被删除，因为当前Column family的memtable的数据还没有落盘 */
   // calculate the oldest log needed for the durability of this column family
   uint64_t OldestLogToKeep();
 

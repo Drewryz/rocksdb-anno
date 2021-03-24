@@ -351,9 +351,15 @@ class MemTable {
 
  private:
   /* 
-   * 猜测：
-   * memtable一开始的状态为FLUSH_NOT_REQUESTED，当其需要flush的时候，则将其设置为FLUSH_REQUESTED，
-   * 最后实际做flush的时候会将状态设置为FLUSH_SCHEDULED
+   * memtable一开始的状态为FLUSH_NOT_REQUESTED，
+   * 
+   * 如果当前的memtable的内存占用是否超过了设定的阈值，表明其应该被flush，则将其设置为FLUSH_REQUESTED，
+   * 该过程由UpdateFlushState函数完成。UpdateFlushState函数在memtable完成一条数据的增删改之后调用。
+   * 
+   * 当memtable的状态被设置为FLUSH_REQUESTED之后，writer会将其状态改为FLUSH_SCHEDULED，然后将该memtable
+   * 对应的Column family放入到flush链表中，等待后台线程做flush。该过程由CheckMemtableFull完成。CheckMemtableFull
+   * 同样是在write batch完成一条数据的增删改之后调用。
+   * 
    */
   enum FlushStateEnum { FLUSH_NOT_REQUESTED, FLUSH_REQUESTED, FLUSH_SCHEDULED };
 

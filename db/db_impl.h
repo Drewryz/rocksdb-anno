@@ -912,11 +912,19 @@ class DBImpl : public DB {
     // Visual Studio doesn't support deque's member to be noncopyable because
     // of a unique_ptr as a member.
     log::Writer* writer;  // own
+    /*
+     * 这个标识为true，表示这个log需要被做sync
+     * 除了这个位置以外，getting_synced被设置为false的另外唯一一个地方为MarkLogsSynced函数
+     * 对于非pipeline写来说，MarkLogsSynced是在leader写完wal和memtable，且做完log sync后，被调用的
+     */
     // true for some prefix of logs_
     bool getting_synced = false;
   };
 
-  /* 记录所有活跃的WAL日志文件 */
+  /*
+   * 记录所有活跃的WAL日志文件。所谓活跃可能是指memtable的数据还没有落盘，与之对应的wal日志文件不能被删除。
+   * 每当有新的wal文件创建时，会将该文件push到alive_log_files_中，参见alive_log_files_.push_back
+   */
   // Without concurrent_prepare, read and writes to alive_log_files_ are
   // protected by mutex_. However since back() is never popped, and push_back()
   // is done only from write_thread_, the same thread can access the item
@@ -924,7 +932,21 @@ class DBImpl : public DB {
   // are protected by locking both mutex_ and log_write_mutex_, and reads must
   // be under either mutex_ or log_write_mutex_.
   std::deque<LogFileNumberSize> alive_log_files_;
-  /* 所有已经写入但是未做sync的wal日志文件 */
+  /*
+   * logs_表示所有已经有数据写入但是未做sync的wal日志文件，流转过程：
+   * 1. 对于write group的leader，如果用户指定的写操作需要做sync
+   * 2. 在leader的写入前预处理逻辑中(PreprocessWrite函数)，将logs_中所有的log元素的getting_synced置为true，
+   *    表示该log需要做sync
+   * 3. leader在WriteToWAL函数中，将所有logs_的元素做sync
+   * 4. leader在MarkLogsSynced函数中：
+   *    1) 将除了当前log的所有log，转移到logs_to_free_
+   *    2) 将当前log的getting_synced置为false
+   * TODO: 
+   * 1. 何时何地向logs_添加新的log
+   * 2. 一个write group，有writer不做sync，有writer做sync，那么会是怎么样的情况
+   *    sync设置不一致的writer，不会在同一个group中
+   */
+  /* */
   // Log files that aren't fully synced, and the current log file.
   // Synchronization:
   //  - push_back() is done from write_thread_ with locked mutex_ and
@@ -941,7 +963,7 @@ class DBImpl : public DB {
   std::deque<LogWriterNumber> logs_;
   // Signaled when getting_synced becomes false for some of the logs_.
   InstrumentedCondVar log_sync_cv_;
-  /* 记录自系统本次运行开始，所有已经写入的log日志大小？ */
+  /* 记录自系统本次运行开始，所有已经写入的log日志大小, 包括多个文件 */
   std::atomic<uint64_t> total_log_size_;
   // only used for dynamically adjusting max_total_wal_size. it is a sum of
   // [write_buffer_size * max_write_buffer_number] over all column families
@@ -984,6 +1006,7 @@ class DBImpl : public DB {
 
   Directories directories_;
 
+  /* 每个DB持有一个WriteBufferManager对象 */
   WriteBufferManager* write_buffer_manager_;
 
   WriteThread write_thread_;

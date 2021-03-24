@@ -96,6 +96,7 @@ struct MutableDBOptions {
   int max_background_compactions;
   bool avoid_flush_during_shutdown;
   uint64_t delayed_write_rate;
+  /* 所有wal文件的大小的阈值 */
   uint64_t max_total_wal_size;
   uint64_t delete_obsolete_files_period_micros;
   unsigned int stats_dump_period_sec;

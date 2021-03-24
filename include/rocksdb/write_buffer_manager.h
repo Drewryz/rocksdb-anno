@@ -19,7 +19,8 @@
 namespace rocksdb {
 
 /*
- * 管理memtable的内存分配 
+ * 管理memtable的内存分配, 参见options.h
+ * https://github.com/facebook/rocksdb/wiki/Write-Buffer-Manager
  */
 class WriteBufferManager {
  public:

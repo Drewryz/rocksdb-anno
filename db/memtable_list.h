@@ -30,6 +30,7 @@ class InternalKeyComparator;
 class InstrumentedMutex;
 class MergeIteratorBuilder;
 
+/* immutable memtables列表 */
 // keeps a list of immutable memtables in a vector. the list is immutable
 // if refcount is bigger than one. It is used as a state for Get() and
 // Iterator code paths
@@ -141,6 +142,15 @@ class MemTableListVersion {
   size_t* parent_memtable_list_memory_usage_;
 };
 
+/*
+ * 存储了一个cfd所有的immutable memtable.
+ * 
+ * 每个cfd持有一个MemTableList对象，在cfd的构造函数中构造该对象
+ * 
+ * min_write_buffer_number_to_merge和max_write_buffer_number_to_maintain是两个用户可以配置的配置项，
+ * 具体含义参见：advanced_options.h
+ * 
+ */
 // This class stores references to all the immutable memtables.
 // The memtables are flushed to L0 as soon as possible and in
 // any order. If there are more than one immutable memtable, their
@@ -174,6 +184,7 @@ class MemTableList {
 
   MemTableListVersion* current() { return current_; }
 
+  /* 该标识让后台线程了解当前该MemTableList对象是否有需要flush的immutable */
   // so that background threads can detect non-nullptr pointer to
   // determine whether there is anything more to start flushing.
   std::atomic<bool> imm_flush_needed;
@@ -217,6 +228,9 @@ class MemTableList {
   // the unflushed mem-tables.
   size_t ApproximateUnflushedMemTablesMemoryUsage();
 
+  /*
+   * 将flush_requested_置为true，表示有线程请求刷immutable memtables
+   */
   // Request a flush of all existing memtables to storage.  This will
   // cause future calls to IsFlushPending() to return true if this list is
   // non-empty (regardless of the min_write_buffer_number_to_merge

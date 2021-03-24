@@ -17,6 +17,7 @@
 #include "options/options_helper.h"
 #include "util/sync_point.h"
 #include <stdio.h>
+#include <iostream>
 
 namespace rocksdb {
 // Convenience methods
@@ -673,12 +674,20 @@ void DBImpl::MemTableInsertStatusCheck(const Status& status) {
 
 /*
  *  leader写wal与memtable之前的预处理
- *  1. 如果当前写入的wal日志已经超过了WAL file最大size，则HandleWALFull
- *  2. ...
+ *  1. 如果当前写入的wal日志(可能有多个)已经超过了所有wal日志占用的最大空间阈值，则HandleWALFull
+ *  2. 如果系统中所有memtable占用的size已经超过了阈值，则HandleWriteBufferFull
+ *  3. 如果遭遇了后台错误，则返回error
+ *  4. 如果全局memtable flush队列不为空，则ScheduleFlushes
+ *  5. 如果需要限流，则DelayWrite
+ *  6. 如果用户指定了当前的写入需要做sync，并且之前的wal日志需要做sync，则等待之前所有wal文件sync完成，
+ *     然后再将所有的wal文件标识为将要做sync
+ *   
  *  TODO: 
  *  1. HandleWALFull
- *  2. 这个函数跳过，看完写memtable再看这个函数
- *  reading here. 2021-3-23-21:30
+ *  2. HandleWriteBufferFull
+ *  3. ScheduleFlushes
+ *  4. DelayWrite
+ *  reading here. 2021-3-24-11:45
  */
 Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
                                bool* need_log_sync,
@@ -711,6 +720,9 @@ Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
     status = ScheduleFlushes(write_context);
   }
 
+  /*
+   * 目测write_controller_是个限流器
+   */
   if (UNLIKELY(status.ok() && (write_controller_.IsStopped() ||
                                write_controller_.NeedsDelay()))) {
     PERF_TIMER_GUARD(write_delay_time);
@@ -933,6 +945,26 @@ Status DBImpl::ConcurrentWriteToWAL(const WriteThread::WriteGroup& write_group,
   return status;
 }
 
+/*
+ * 清理WAL日志逻辑。可参考：http://mysql.taobao.org/monthly/2018/09/04/
+ * wal的日志文件的sync可以保证所有的数据都已经写入磁盘，之后任何的数据都不会丢失。
+ * 那这里的flush很可能意味着，rocksdb切换wal文件。
+ * 具体步骤如下(跳过2pc)：
+ * 1. 获取alive_log_files_队列的头元素作为oldest_alive_log
+ * 2. 遍历所有的Column family：
+ *    1) 如果当前cfg依赖的最早的wal日志(也就是memtable的数据未落盘，导致wal日志不能删除的日志)比oldest alive log小，则：
+ *       切换memtable, SwitchMemtable
+ *       请求后台线程刷immutable，FlushRequested
+ *       如果确实需要刷immutable，则将cfd加入flush队列，SchedulePendingFlush
+ * 3. MaybeScheduleFlushOrCompaction
+ * 
+ * TODO:
+ * 1. SwitchMemtable
+ * 2. SchedulePendingFlush
+ * 3. MaybeScheduleFlushOrCompaction
+ * 4. http://mysql.taobao.org/monthly/2018/09/04/
+ * reading here. 2021-3-24-22:11
+ */
 Status DBImpl::HandleWALFull(WriteContext* write_context) {
   mutex_.AssertHeld();
   assert(write_context != nullptr);
@@ -945,6 +977,7 @@ Status DBImpl::HandleWALFull(WriteContext* write_context) {
   auto oldest_alive_log = alive_log_files_.begin()->number;
   auto oldest_log_with_uncommited_prep = FindMinLogContainingOutstandingPrep();
 
+  /* 2pc逻辑跳过 */
   if (allow_2pc() &&
       oldest_log_with_uncommited_prep > 0 &&
       oldest_log_with_uncommited_prep <= oldest_alive_log) {
@@ -973,17 +1006,27 @@ Status DBImpl::HandleWALFull(WriteContext* write_context) {
                  ". Total log size is %" PRIu64
                  " while max_total_wal_size is %" PRIu64,
                  oldest_alive_log, total_log_size_.load(), GetMaxTotalWalSize());
+  /* 遍历所有的Column family */
   // no need to refcount because drop is happening in write thread, so can't
   // happen while we're in the write thread
   for (auto cfd : *versions_->GetColumnFamilySet()) {
     if (cfd->IsDropped()) {
       continue;
     }
+    /*
+     * 如果当前cfg依赖的最早的wal日志(也就是memtable的数据未落盘，导致wal日志不能删除的日志)比oldest alive log小，
+     * 那么Switch cfd的memtable，switch的过程会将memtable写到磁盘，此时当前的cfg自然不用依赖OldestLogToKeep
+     * alive_log_files_流转过程，参考FindObsoleteFiles
+     */
+    /* reading here. 2021-3-24-17:51 猜测：alive_log_files_可能会按照当前所有wal文件的size，记录一个wal文件窗口 */
+    /* TODO: OldestLogToKeep为什么会小于oldest_alive_log，什么情况下会出现，oldest_alive_log是如何推进的 */
+    /* TODO: SwitchMemtable */
     if (cfd->OldestLogToKeep() <= oldest_alive_log) {
       status = SwitchMemtable(cfd, write_context);
       if (!status.ok()) {
         break;
       }
+      /* reading here. */
       cfd->imm()->FlushRequested();
       SchedulePendingFlush(cfd);
     }
