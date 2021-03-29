@@ -230,6 +230,7 @@ class ColumnFamilyData {
 
   InternalStats* internal_stats() { return internal_stats_.get(); }
 
+  /* 记录cfd所有的immutable */
   MemTableList* imm() { return &imm_; }
   MemTable* mem() { return mem_; }
   Version* current() { return current_; }
@@ -392,6 +393,12 @@ class ColumnFamilyData {
   ColumnFamilyData* next_;
   ColumnFamilyData* prev_;
 
+  /*
+   * 关于这个变量我猜测它代表的是这个意思：
+   * 假设一个cfd有一个memtable，初始时，向这个memtable写入了一些数据，与此同时也要写wal日志，假设wal日志的编号为s1，
+   * 如果从此以后，其他cfd有写入数据，但该cfd一直没有数据写入，因为wal是全局的，那么wal日志的编号会一直往前滚动，
+   * 但是这个cfd的memtable对应的最早日志就是s1，这个编号用log_number_记录
+   */
   // This is the earliest log file number that contains data from this
   // Column Family. All earlier log files must be ignored and not
   // recovered from

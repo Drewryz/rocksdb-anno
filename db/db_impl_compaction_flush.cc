@@ -1118,6 +1118,12 @@ ColumnFamilyData* DBImpl::PopFirstFromFlushQueue() {
   return cfd;
 }
 
+/*
+ * 判断一个cfd的memtable是否有要被flush到磁盘的，如果需要则将cfd加入全局flush队列中。
+ * 如何判断cfd的memtable是否要被flush到磁盘，参见IsFlushPending函数。
+ * SchedulePendingFlush将对应的ColumnFamily加入到flush queue之后，会有一个后台线程来将memtable刷到磁盘。
+ * 该后台线程为BGWorkFlush.
+ */
 void DBImpl::SchedulePendingFlush(ColumnFamilyData* cfd) {
   if (!cfd->pending_flush() && cfd->imm()->IsFlushPending()) {
     AddToFlushQueue(cfd);
@@ -1817,6 +1823,7 @@ void DBImpl::InstallSuperVersionAndScheduleWorkWrapper(
   job_context->superversions_to_free.push_back(old_superversion);
 }
 
+/* 更新super version */
 SuperVersion* DBImpl::InstallSuperVersionAndScheduleWork(
     ColumnFamilyData* cfd, SuperVersion* new_sv,
     const MutableCFOptions& mutable_cf_options) {

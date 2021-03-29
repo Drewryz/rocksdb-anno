@@ -408,6 +408,7 @@ class MemTable {
 
   SequenceNumber creation_seq_;
 
+  /* 当该memtable被switch时，系统当前的wal日志编号 */
   // The log files earlier than this number can be deleted.
   uint64_t mem_next_logfile_number_;
 

@@ -266,6 +266,16 @@ void MemTableListVersion::TrimHistory(autovector<MemTable*>* to_delete) {
   }
 }
 
+/*
+ * 判断memtable_list记录的所有memtable是否至少有一个需要被flush的磁盘的。
+ * 
+ * "然后我们来看IsFlushPending的实现．这个函数的意思就是至少有一个memtable需要被flush.
+ * 而MemTableList这个类则是保存了所有的immutable memtables."
+ * 
+ * 判断的原则为：
+ * + 如果有线程请求刷该cfd的immumemtable，并且等待被刷的immumemtable个数大于等于1
+ * + 等待被刷的immumemtable个数大于多个memtable合并成单个memtable的阈值
+ */
 // Returns true if there is at least one memtable on which flush has
 // not yet started.
 bool MemTableList::IsFlushPending() const {
@@ -419,6 +429,7 @@ Status MemTableList::InstallMemtableFlushResults(
   return s;
 }
 
+/* reading here. */
 // New memtables are inserted at the front of the list.
 void MemTableList::Add(MemTable* m, autovector<MemTable*>* to_delete) {
   assert(static_cast<int>(current_->memlist_.size()) >= num_flush_not_started_);

@@ -531,6 +531,9 @@ struct DBOptions {
   // Default: 1000
   size_t keep_log_file_num = 1000;
 
+/*
+ * 复用WAL日志文件，类似innodb 
+ */
   // Recycle log files.
   // If non-zero, we will reuse previously written log files for new
   // logs, overwriting the old data.  The value indicates how many

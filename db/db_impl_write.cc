@@ -948,19 +948,17 @@ Status DBImpl::ConcurrentWriteToWAL(const WriteThread::WriteGroup& write_group,
 /*
  * 清理WAL日志逻辑。可参考：http://mysql.taobao.org/monthly/2018/09/04/
  * wal的日志文件的sync可以保证所有的数据都已经写入磁盘，之后任何的数据都不会丢失。
- * 那这里的flush很可能意味着，rocksdb切换wal文件。
+ * 那这里的flush很可能意味着，rocksdb要删除wal文件。
  * 具体步骤如下(跳过2pc)：
  * 1. 获取alive_log_files_队列的头元素作为oldest_alive_log
  * 2. 遍历所有的Column family：
  *    1) 如果当前cfg依赖的最早的wal日志(也就是memtable的数据未落盘，导致wal日志不能删除的日志)比oldest alive log小，则：
  *       切换memtable, SwitchMemtable
- *       请求后台线程刷immutable，FlushRequested
+ *       将cfd对应的memtable list的flush_requested_置为true，表示有线程请求刷immutable memtables
  *       如果确实需要刷immutable，则将cfd加入flush队列，SchedulePendingFlush
  * 3. MaybeScheduleFlushOrCompaction
  * 
  * TODO:
- * 1. SwitchMemtable
- * 2. SchedulePendingFlush
  * 3. MaybeScheduleFlushOrCompaction
  * 4. http://mysql.taobao.org/monthly/2018/09/04/
  * reading here. 2021-3-24-22:11
@@ -1026,11 +1024,11 @@ Status DBImpl::HandleWALFull(WriteContext* write_context) {
       if (!status.ok()) {
         break;
       }
-      /* reading here. */
       cfd->imm()->FlushRequested();
       SchedulePendingFlush(cfd);
     }
   }
+  /* reading here. 2021-3-29-21:05 */
   MaybeScheduleFlushOrCompaction();
   return status;
 }
@@ -1203,6 +1201,19 @@ void DBImpl::NotifyOnMemTableSealed(ColumnFamilyData* cfd,
 }
 #endif  // ROCKSDB_LITE
 
+/*
+ * 用来将现在的memtable改变为immutable,然后再新建一个memtable
+ * 
+ * 在实现中，每一次调用SwitchMemtable之后，都会调用对应immutable　memtable的FlushRequested函数来设置对应memtable的flush_requeseted_, 
+ * 并且会调用上面的SchedulePendingFlush来将对应的ColumnFamily加入到flush_queue_队列中。
+ * 
+ * 流程：
+ * 1. 创建新的wal日志文件
+ * 2. 创建新的memtable
+ * 3. 将logfile_number_设置为新的wal日志编号
+ * 4. 将当前memtable加入immutable list中
+ * 5. 将新建的memtable，设置为cfd当前的memtable
+ */
 // REQUIRES: mutex_ is held
 // REQUIRES: this thread is currently at the front of the writer queue
 Status DBImpl::SwitchMemtable(ColumnFamilyData* cfd, WriteContext* context) {
@@ -1240,6 +1251,9 @@ Status DBImpl::SwitchMemtable(ColumnFamilyData* cfd, WriteContext* context) {
     recycle_log_number = log_recycle_files.front();
     log_recycle_files.pop_front();
   }
+  /*
+   * 对于rocksdb来说，switch memtable，就需要切换wal log，这里是得到下一个wal日志的number
+   */
   uint64_t new_log_number =
       creating_new_log ? versions_->NewFileNumber() : logfile_number_;
   SuperVersion* new_superversion = nullptr;
@@ -1338,6 +1352,9 @@ Status DBImpl::SwitchMemtable(ColumnFamilyData* cfd, WriteContext* context) {
     alive_log_files_.push_back(LogFileNumberSize(logfile_number_));
     log_write_mutex_.Unlock();
   }
+  /*
+   * fast path， 跳过。
+   */
   for (auto loop_cfd : *versions_->GetColumnFamilySet()) {
     // all this is just optimization to delete logs that
     // are no longer needed -- if CF is empty, that means it
@@ -1353,9 +1370,11 @@ Status DBImpl::SwitchMemtable(ColumnFamilyData* cfd, WriteContext* context) {
   }
 
   cfd->mem()->SetNextLogNumber(logfile_number_);
+  /* TODO: */
   cfd->imm()->Add(cfd->mem(), &context->memtables_to_free_);
   new_mem->Ref();
   cfd->SetMemtable(new_mem);
+  /* TODO: */
   context->superversions_to_free_.push_back(InstallSuperVersionAndScheduleWork(
       cfd, new_superversion, mutable_cf_options));
   if (concurrent_prepare_) {

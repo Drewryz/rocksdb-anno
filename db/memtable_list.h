@@ -262,6 +262,9 @@ class MemTableList {
   // committing in progress
   bool commit_in_progress_;
 
+  /*
+   * 将flush_requested_置为true，表示有线程请求刷immutable memtables, 参见FlushRequested函数 
+   */
   // Requested a flush of all memtables to storage
   bool flush_requested_;
 

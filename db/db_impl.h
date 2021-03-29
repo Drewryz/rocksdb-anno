@@ -641,6 +641,11 @@ class DBImpl : public DB {
 #endif
   struct CompactionState;
 
+  /*
+   * RAII类。每次写操作，leader都会创建一个该类的对象，
+   * 用于记录需要清理的memtable和super version。该对象
+   * 析构后会自动销毁记录的变量。
+   */
   struct WriteContext {
     autovector<SuperVersion*> superversions_to_free_;
     autovector<MemTable*> memtables_to_free_;
@@ -1053,6 +1058,9 @@ class DBImpl : public DB {
         : fname(fn), type(t), number(num), path_id(pid), job_id(jid) {}
   };
 
+  /*
+   * 该队列保存所有的将要被flush到磁盘的ColumnFamily。
+   */
   // flush_queue_ and compaction_queue_ hold column families that we need to
   // flush and compact, respectively.
   // A column family is inserted into flush_queue_ when it satisfies condition
