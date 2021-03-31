@@ -903,6 +903,15 @@ Status DBImpl::Get(const ReadOptions& read_options,
   return GetImpl(read_options, column_family, key, value);
 }
 
+/*
+ * 调用栈：
+#0  rocksdb::DBImpl::GetImpl (this=0x832040, read_options=..., column_family=0x845940, key=..., pinnable_val=0x7fffffffd8b0, value_found=0x0)
+    at /root/code/rocksdb/db/db_impl.cc:909
+#1  0x00007ffff728faf0 in rocksdb::DBImpl::Get (this=0x832040, read_options=..., column_family=0x845940, key=..., value=0x7fffffffd8b0) at /root/code/rocksdb/db/db_impl.cc:903
+#2  0x00007ffff72418db in rocksdb::DB::Get (this=0x832040, options=..., column_family=0x845940, key=..., value=0x7fffffffd970) at /root/code/rocksdb/include/rocksdb/db.h:320
+#3  0x00007ffff72419ee in rocksdb::DB::Get (this=0x832040, options=..., key=..., value=0x7fffffffd970) at /root/code/rocksdb/include/rocksdb/db.h:330
+#4  0x00000000004083e2 in main () at test.cpp:22
+ */
 Status DBImpl::GetImpl(const ReadOptions& read_options,
                        ColumnFamilyHandle* column_family, const Slice& key,
                        PinnableSlice* pinnable_val, bool* value_found) {
@@ -939,8 +948,10 @@ Status DBImpl::GetImpl(const ReadOptions& read_options,
   TEST_SYNC_POINT("DBImpl::GetImpl:3");
   TEST_SYNC_POINT("DBImpl::GetImpl:4");
 
+  /* TODO: ??? */
   // Prepare to store a list of merge operations if merge occurs.
   MergeContext merge_context;
+  /* TODO: ??? */
   RangeDelAggregator range_del_agg(cfd->internal_comparator(), snapshot);
 
   Status s;
@@ -954,6 +965,14 @@ Status DBImpl::GetImpl(const ReadOptions& read_options,
                         has_unpersisted_data_.load(std::memory_order_relaxed));
   bool done = false;
   if (!skip_memtable) {
+    /*
+     * 先读memtable
+     * 再读immutable 
+     */
+    /*
+     * reading here. 2021-3-31-21:24
+     * TODO: https://github.com/facebook/rocksdb/wiki/Prefix-Seek 
+     */
     if (sv->mem->Get(lkey, pinnable_val->GetSelf(), &s, &merge_context,
                      &range_del_agg, read_options)) {
       done = true;
@@ -966,11 +985,15 @@ Status DBImpl::GetImpl(const ReadOptions& read_options,
       pinnable_val->PinSelf();
       RecordTick(stats_, MEMTABLE_HIT);
     }
+    /* TODO: IsMergeInProgress */
     if (!done && !s.ok() && !s.IsMergeInProgress()) {
       return s;
     }
   }
   if (!done) {
+    /*
+     * memtable和immutable都没有读到数据，再读blockcache和sst了
+     */
     PERF_TIMER_GUARD(get_from_output_files_time);
     sv->current->Get(read_options, lkey, pinnable_val, &s, &merge_context,
                      &range_del_agg, value_found);

@@ -678,6 +678,7 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
 
   Slice user_key = key.user_key();
   bool found_final_value = false;
+  /* TODO: IsMergeInProgress */
   bool merge_in_progress = s->IsMergeInProgress();
   bool const may_contain =
       nullptr == prefix_bloom_

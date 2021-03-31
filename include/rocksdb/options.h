@@ -938,6 +938,9 @@ struct Options : public DBOptions, public ColumnFamilyOptions {
   Options* OptimizeForSmallDb();
 };
 
+/*
+ * ReadTier指的是读哪一层的数据，这里的层指得memtable, block cahce, 磁盘
+ */
 //
 // An application can issue a read request (via Get/Iterators) and specify
 // if that read should process data that ALREADY resides on a specified cache

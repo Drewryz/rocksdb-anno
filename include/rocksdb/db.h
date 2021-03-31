@@ -311,6 +311,10 @@ class DB {
                             ColumnFamilyHandle* column_family, const Slice& key,
                             std::string* value) {
     assert(value != nullptr);
+    /*
+     * RocksDB 之前的某个版本引入了 PinnableSlice 作为数据在引擎内的传输载体。
+     * 它的主要作用是可以减少数据复制，即当用户所要查找的数据在 BlockCache 中的时候，只返回其引用。 
+     */
     PinnableSlice pinnable_val(value);
     assert(!pinnable_val.IsPinned());
     auto s = Get(options, column_family, key, &pinnable_val);

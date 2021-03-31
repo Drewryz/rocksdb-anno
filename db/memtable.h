@@ -420,7 +420,10 @@ class MemTable {
   std::vector<port::RWMutex> locks_;
 
   const SliceTransform* const prefix_extractor_;
-  /* ？？？？？ */
+  /*
+   * 如果用户定义了prefix_extractor，那memtable会持有一个
+   * 前缀布隆过滤器。参见memtable的构造函数 
+   */
   std::unique_ptr<DynamicBloom> prefix_bloom_;
 
   std::atomic<FlushStateEnum> flush_state_;
