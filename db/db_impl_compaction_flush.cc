@@ -997,6 +997,9 @@ Status DBImpl::EnableAutoCompaction(
   return s;
 }
 
+/*
+ * 往线程池的队列中加入BGWorkFlush和BGWorkCompaction任务
+ */
 void DBImpl::MaybeScheduleFlushOrCompaction() {
   mutex_.AssertHeld();
   if (!opened_successfully_) {

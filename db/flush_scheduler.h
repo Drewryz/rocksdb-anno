@@ -15,7 +15,7 @@ namespace rocksdb {
 class ColumnFamilyData;
 
 /*
- * 该类其实就是装有元素类型为ColumnFamilyData的链表
+ * 该类其实就是装有元素类型为ColumnFamilyData的链表。用于记录所有需要切memtable的cfd.
  */
 // Unless otherwise noted, all methods on FlushScheduler should be called
 // only with the DB mutex held or from a single-threaded recovery context.

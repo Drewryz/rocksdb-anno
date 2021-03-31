@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <stdio.h>
 
 #include "db/memtable_list.h"
 #include "db/table_cache.h"
@@ -197,7 +198,40 @@ class ColumnFamilyData {
   // thread-safe
   int NumberLevels() const { return ioptions_.num_levels; }
 
-  void SetLogNumber(uint64_t log_number) { log_number_ = log_number; }
+  /*
+   * 该函数的调用栈：
+#0  rocksdb::ColumnFamilyData::SetLogNumber (this=0x840620, log_number=6) at /root/code/rocksdb/db/column_family.h:202
+#1  0x00007ffff73a1550 in rocksdb::VersionSet::LogAndApply (this=0x83c9d0, column_family_data=0x840620, mutable_cf_options=..., edit_list=..., mu=0x834478,
+    db_directory=0x8472e0, new_descriptor_log=true, new_cf_options=0x0) at /root/code/rocksdb/db/version_set.cc:2606
+#2  0x00007ffff735d414 in rocksdb::MemTableList::InstallMemtableFlushResults (this=0x840ac8, cfd=0x840620, mutable_cf_options=..., mems=..., vset=0x83c9d0, mu=0x834478,
+    file_number=7, to_delete=0x7fff95ff9f78, db_directory=0x8472e0, log_buffer=0x7fff95ffa0e0) at /root/code/rocksdb/db/memtable_list.cc:390
+#3  0x00007ffff73250d6 in rocksdb::FlushJob::Run (this=0x7fff95ff9330, file_meta=0x7fff95ff92b0) at /root/code/rocksdb/db/flush_job.cc:195
+#4  0x00007ffff72c2795 in rocksdb::DBImpl::FlushMemTableToOutputFile (this=0x834040, cfd=0x840620, mutable_cf_options=..., made_progress=0x7fff95ffa9ff,
+    job_context=0x7fff95ff9ee0, log_buffer=0x7fff95ffa0e0) at /root/code/rocksdb/db/db_impl_compaction_flush.cc:126
+#5  0x00007ffff72c826c in rocksdb::DBImpl::BackgroundFlush (this=0x834040, made_progress=0x7fff95ffa9ff, job_context=0x7fff95ff9ee0, log_buffer=0x7fff95ffa0e0)
+    at /root/code/rocksdb/db/db_impl_compaction_flush.cc:1223
+#6  0x00007ffff72c8485 in rocksdb::DBImpl::BackgroundCallFlush (this=0x834040) at /root/code/rocksdb/db/db_impl_compaction_flush.cc:1248
+#7  0x00007ffff72c7c51 in rocksdb::DBImpl::BGWorkFlush (db=0x834040) at /root/code/rocksdb/db/db_impl_compaction_flush.cc:1152
+#8  0x00007ffff7555f9c in rocksdb::ThreadPoolImpl::__lambda0::operator() (__closure=0x7fffb001af70) at /root/code/rocksdb/util/threadpool_imp.cc:424
+#9  0x00007ffff75563cf in std::_Function_handler<void(), rocksdb::ThreadPoolImpl::Schedule(void (*)(void*), void*, void*, void (*)(void*))::__lambda0>::_M_invoke(const std::_Any_data &) (__functor=...) at /usr/include/c++/4.8.2/functional:2071
+#10 0x00007ffff738caba in std::function<void ()>::operator()() const (this=0x7fff95ffab00) at /usr/include/c++/4.8.2/functional:2471
+#11 0x00007ffff7555477 in rocksdb::ThreadPoolImpl::Impl::BGThread (this=0x8320a0, thread_id=0) at /root/code/rocksdb/util/threadpool_imp.cc:237
+#12 0x00007ffff755554a in rocksdb::ThreadPoolImpl::Impl::BGThreadWrapper (arg=0x7fffb001af90) at /root/code/rocksdb/util/threadpool_imp.cc:261
+#13 0x00007ffff755dce8 in std::_Bind_simple<void* (*(rocksdb::BGThreadMetadata*))(void*)>::_M_invoke<0ul>(std::_Index_tuple<0ul>) (this=0x7fffb001afe0)
+    at /usr/include/c++/4.8.2/functional:1732
+#14 0x00007ffff755dbf3 in std::_Bind_simple<void* (*(rocksdb::BGThreadMetadata*))(void*)>::operator()() (this=0x7fffb001afe0) at /usr/include/c++/4.8.2/functional:1720
+#15 0x00007ffff755db8c in std::thread::_Impl<std::_Bind_simple<void* (*(rocksdb::BGThreadMetadata*))(void*)> >::_M_run() (this=0x7fffb001afc8)
+    at /usr/include/c++/4.8.2/thread:115
+#16 0x00007ffff658594e in execute_native_thread_routine_compat () at ../../../../../libstdc++-v3/src/c++11/thread.cc:94
+#17 0x00007ffff689ddd5 in start_thread () from /lib64/libpthread.so.0
+#18 0x00007ffff5cd602d in clone () from /lib64/libc.so.6 
+   *
+   * 从上面的调用栈看来，一个cf的memtable完成flush以后，才会推进log_number_
+   */
+  void SetLogNumber(uint64_t log_number) {
+    printf("%llu marli\n", (long long unsigned int)log_number);
+    log_number_ = log_number; 
+  }
   uint64_t GetLogNumber() const { return log_number_; }
 
   // thread-safe

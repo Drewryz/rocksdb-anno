@@ -1059,7 +1059,9 @@ class DBImpl : public DB {
   };
 
   /*
-   * 该队列保存所有的将要被flush到磁盘的ColumnFamily。
+   * flush_queue_记录的是memtable要被flush到磁盘的cfd，后台刷脏线程消费
+   * flush_scheduler_记录所有需要切memtable的cfd
+   * 进入flush_queue_的cfd一定是已经切过memtable的cfd
    */
   // flush_queue_ and compaction_queue_ hold column families that we need to
   // flush and compact, respectively.

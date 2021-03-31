@@ -184,7 +184,6 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
   if (w.state == WriteThread::STATE_PARALLEL_MEMTABLE_WRITER) {
     // we are a non-leader in a parallel group
     PERF_TIMER_GUARD(write_memtable_time);
-    printf("mark1mark1\n");
     if (w.ShouldWriteToMemtable()) {
       ColumnFamilyMemTablesImpl column_family_memtables(
           versions_->GetColumnFamilySet());
@@ -192,7 +191,6 @@ Status DBImpl::WriteImpl(const WriteOptions& write_options,
        * 传入的参数: w.sequence是已经初始化过的
        * 猜测是leader做的
        */
-      printf("yzryzr %llu\n", (long long unsigned int)w.sequence);
       /* 此时writer自身的一些变量已经被leader设置过了 */
       w.status = WriteBatchInternal::InsertInto(
           &w, w.sequence, &column_family_memtables, &flush_scheduler_,
@@ -675,18 +673,13 @@ void DBImpl::MemTableInsertStatusCheck(const Status& status) {
 /*
  *  leader写wal与memtable之前的预处理
  *  1. 如果当前写入的wal日志(可能有多个)已经超过了所有wal日志占用的最大空间阈值，则HandleWALFull
- *  2. 如果系统中所有memtable占用的size已经超过了阈值，则HandleWriteBufferFull
+ *  2. 如果系统中所有memtable占用的size已经超过了阈值，则选取最早创建的memtable，将其加入flush队列。HandleWriteBufferFull
  *  3. 如果遭遇了后台错误，则返回error
- *  4. 如果全局memtable flush队列不为空，则ScheduleFlushes
+ *  4. 如果全局memtable flush队列不为空，则将flush_scheduler_队列中的cfd取出来，然后切memtable。ScheduleFlushes
  *  5. 如果需要限流，则DelayWrite
  *  6. 如果用户指定了当前的写入需要做sync，并且之前的wal日志需要做sync，则等待之前所有wal文件sync完成，
  *     然后再将所有的wal文件标识为将要做sync
  *   
- *  TODO: 
- *  1. HandleWALFull
- *  2. HandleWriteBufferFull
- *  3. ScheduleFlushes
- *  4. DelayWrite
  *  reading here. 2021-3-24-11:45
  */
 Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
@@ -703,6 +696,7 @@ Status DBImpl::PreprocessWrite(const WriteOptions& write_options,
     status = HandleWALFull(write_context);
   }
 
+  /* reading here. 2021-3-31-11:54 */
   if (UNLIKELY(status.ok() && write_buffer_manager_->ShouldFlush())) {
     // Before a new memtable is added in SwitchMemtable(),
     // write_buffer_manager_->ShouldFlush() will keep returning true. If another
@@ -956,11 +950,7 @@ Status DBImpl::ConcurrentWriteToWAL(const WriteThread::WriteGroup& write_group,
  *       切换memtable, SwitchMemtable
  *       将cfd对应的memtable list的flush_requested_置为true，表示有线程请求刷immutable memtables
  *       如果确实需要刷immutable，则将cfd加入flush队列，SchedulePendingFlush
- * 3. MaybeScheduleFlushOrCompaction
- * 
- * TODO:
- * 3. MaybeScheduleFlushOrCompaction
- * 4. http://mysql.taobao.org/monthly/2018/09/04/
+ * 3. 往线程池的队列中加入BGWorkFlush和BGWorkCompaction任务，MaybeScheduleFlushOrCompaction
  * reading here. 2021-3-24-22:11
  */
 Status DBImpl::HandleWALFull(WriteContext* write_context) {
@@ -1033,6 +1023,9 @@ Status DBImpl::HandleWALFull(WriteContext* write_context) {
   return status;
 }
 
+/*
+ * 系统中memtable占用的空间过多时，选取最早创建的memtable，将其加入flush队列 
+ */
 Status DBImpl::HandleWriteBufferFull(WriteContext* write_context) {
   mutex_.AssertHeld();
   assert(write_context != nullptr);
@@ -1171,6 +1164,9 @@ Status DBImpl::ThrottleLowPriWritesIfNeeded(const WriteOptions& write_options,
   return Status::OK();
 }
 
+/*
+ * 将flush_scheduler_队列中的cfd取出来，然后切memtable
+ */
 Status DBImpl::ScheduleFlushes(WriteContext* context) {
   ColumnFamilyData* cfd;
   while ((cfd = flush_scheduler_.TakeNextColumnFamily()) != nullptr) {
