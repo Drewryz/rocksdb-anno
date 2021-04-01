@@ -665,6 +665,9 @@ static bool SaveValue(void* arg, const char* entry) {
   return false;
 }
 
+/*
+ * MergeContext和MergeInProgress与merge operator相关，跳过
+ */
 bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
                    MergeContext* merge_context,
                    RangeDelAggregator* range_del_agg, SequenceNumber* seq,
@@ -680,6 +683,7 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
   bool found_final_value = false;
   /* TODO: IsMergeInProgress */
   bool merge_in_progress = s->IsMergeInProgress();
+  /* 如果配置了前缀过滤器，则先查过滤器 */
   bool const may_contain =
       nullptr == prefix_bloom_
           ? false
@@ -689,9 +693,16 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
     PERF_COUNTER_ADD(bloom_memtable_miss_count, 1);
     *seq = kMaxSequenceNumber;
   } else {
+    /*
+     * 布隆过滤器认为可能存在数据，或者没有配置布隆过滤器，则需要真正在memtable中查找数据 
+     */
     if (prefix_bloom_) {
       PERF_COUNTER_ADD(bloom_memtable_hit_count, 1);
     }
+    /* 
+     * range_del_iter和range_del_agg，与range deletion相关，参见：
+     * https://blog.csdn.net/Z_Stand/article/details/107569986
+     */
     std::unique_ptr<InternalIterator> range_del_iter(
         NewRangeTombstoneIterator(read_opts));
     Status status = range_del_agg->AddTombstones(std::move(range_del_iter));
@@ -714,6 +725,7 @@ bool MemTable::Get(const LookupKey& key, std::string* value, Status* s,
     saver.inplace_update_support = moptions_.inplace_update_support;
     saver.statistics = moptions_.statistics;
     saver.env_ = env_;
+    /* 来吧，开始搜索 */
     table_->Get(key, &saver, SaveValue);
 
     *seq = saver.seq;

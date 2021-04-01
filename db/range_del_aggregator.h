@@ -22,6 +22,11 @@
 
 namespace rocksdb {
 
+/*
+ * 一个RangeDelAggregator对象用于聚合range-deletion-tombstones, 如果range-deletion-tombstones
+ * 出现在memtable或者sst文件中。RangeDelAggregator提供了一些方法用于检测一个key是否被range-tombstomes覆盖，
+ * 或者写相关的tombstones到新的sst文件中
+ */
 // A RangeDelAggregator aggregates range deletion tombstones as they are
 // encountered in memtables/SST files. It provides methods that check whether a
 // key is covered by range tombstones or write the relevant tombstones to a new

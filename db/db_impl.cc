@@ -969,10 +969,6 @@ Status DBImpl::GetImpl(const ReadOptions& read_options,
      * 先读memtable
      * 再读immutable 
      */
-    /*
-     * reading here. 2021-3-31-21:24
-     * TODO: https://github.com/facebook/rocksdb/wiki/Prefix-Seek 
-     */
     if (sv->mem->Get(lkey, pinnable_val->GetSelf(), &s, &merge_context,
                      &range_del_agg, read_options)) {
       done = true;
