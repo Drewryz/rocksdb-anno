@@ -469,7 +469,7 @@ class DBImpl : public DB {
   Status EndBlockCacheTrace() override;
 
   using DB::StartIOTrace;
-  Status StartIOTrace(Env* env, const TraceOptions& options,
+  Status StartIOTrace(const TraceOptions& options,
                       std::unique_ptr<TraceWriter>&& trace_writer) override;
 
   using DB::EndIOTrace;
@@ -486,6 +486,7 @@ class DBImpl : public DB {
 #endif  // ROCKSDB_LITE
 
   // ---- End of implementations of the DB interface ----
+  SystemClock* GetSystemClock() const;
 
   struct GetImplOptions {
     ColumnFamilyHandle* column_family = nullptr;
@@ -1057,7 +1058,6 @@ class DBImpl : public DB {
   bool own_info_log_;
   const DBOptions initial_db_options_;
   Env* const env_;
-  std::shared_ptr<SystemClock> clock_;
   std::shared_ptr<IOTracer> io_tracer_;
   const ImmutableDBOptions immutable_db_options_;
   FileSystemPtr fs_;
@@ -1308,6 +1308,7 @@ class DBImpl : public DB {
 
   struct LogFileNumberSize {
     explicit LogFileNumberSize(uint64_t _number) : number(_number) {}
+    LogFileNumberSize() {}
     void AddSize(uint64_t new_size) { size += new_size; }
     uint64_t number;
     uint64_t size = 0;
@@ -1413,6 +1414,7 @@ class DBImpl : public DB {
     DBImpl* db;
     // background compaction takes ownership of `prepicked_compaction`.
     PrepickedCompaction* prepicked_compaction;
+    Env::Priority compaction_pri_;
   };
 
   // Initialize the built-in column family for persistent stats. Depending on
@@ -1506,6 +1508,12 @@ class DBImpl : public DB {
   // concurrent flush memtables to storage.
   Status WriteLevel0TableForRecovery(int job_id, ColumnFamilyData* cfd,
                                      MemTable* mem, VersionEdit* edit);
+
+  // Get the size of a log file and, if truncate is true, truncate the
+  // log file to its actual size, thereby freeing preallocated space.
+  // Return success even if truncate fails
+  Status GetLogSizeAndMaybeTruncate(uint64_t wal_number, bool truncate,
+                                    LogFileNumberSize* log);
 
   // Restore alive_log_files_ and total_log_size_ after recovery.
   // It needs to run only when there's no flush during recovery
@@ -2219,6 +2227,8 @@ class DBImpl : public DB {
   InstrumentedCondVar atomic_flush_install_cv_;
 
   bool wal_in_db_path_;
+
+  BlobFileCompletionCallback blob_callback_;
 };
 
 extern Options SanitizeOptions(const std::string& db, const Options& src);
