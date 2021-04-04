@@ -384,6 +384,27 @@ bool TableCache::GetFromRowCache(const Slice& user_key, IterKey& row_cache_key,
 }
 #endif  // ROCKSDB_LITE
 
+/* reading here. 2021-4-4-20:15 */
+/*
+ * 调用栈：
+#0  rocksdb::TableCache::Get (this=0x667900, options=..., internal_comparator=..., file_meta=..., k=..., get_context=0x7fffffffcf30, prefix_extractor=0x0,
+    file_read_hist=0x665e80, skip_filters=false, level=0, max_file_size_for_l0_meta_pin=100663296) at /root/code/rocksdb/db/table_cache.cc:398
+#1  0x00007ffff70c436a in rocksdb::Version::Get (this=0x66b160, read_options=..., k=..., value=0x7fffffffd740, timestamp=0x0, status=0x7fffffffdd20,
+    merge_context=0x7fffffffd460, max_covering_tombstone_seq=0x7fffffffd458, value_found=0x0, key_exists=0x0, seq=0x0, callback=0x0, is_blob=0x0, do_merge=true)
+    at /root/code/rocksdb/db/version_set.cc:1912
+#2  0x00007ffff6f324eb in rocksdb::DBImpl::GetImpl (this=0x655740, read_options=..., key=..., get_impl_options=...) at /root/code/rocksdb/db/db_impl/db_impl.cc:1796
+#3  0x00007ffff6f318c3 in rocksdb::DBImpl::Get (this=0x655740, read_options=..., column_family=0x669990, key=..., value=0x7fffffffd740, timestamp=0x0)
+    at /root/code/rocksdb/db/db_impl/db_impl.cc:1629
+#4  0x00007ffff6f3180e in rocksdb::DBImpl::Get (this=0x655740, read_options=..., column_family=0x669990, key=..., value=0x7fffffffd740)
+    at /root/code/rocksdb/db/db_impl/db_impl.cc:1619
+#5  0x00007ffff6ed5e50 in rocksdb::DB::Get (this=0x655740, options=..., column_family=0x669990, key=..., value=0x7fffffffd800) at /root/code/rocksdb/include/rocksdb/db.h:416
+#6  0x00007ffff6ed5f67 in rocksdb::DB::Get (this=0x655740, options=..., key=..., value=0x7fffffffd800) at /root/code/rocksdb/include/rocksdb/db.h:427
+#7  0x00000000004058d1 in main () at blobdb_test3.cc:21
+ *
+ * file_meta持有key所在的sst文件，接下来的搜索将在该sst中进行。
+ * 该函数之前的逻辑已经判断过了，要查找的key一定存在且在该文件中。
+ * 
+ */
 Status TableCache::Get(const ReadOptions& options,
                        const InternalKeyComparator& internal_comparator,
                        const FileMetaData& file_meta, const Slice& k,

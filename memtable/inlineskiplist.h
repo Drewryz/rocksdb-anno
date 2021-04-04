@@ -742,6 +742,31 @@ void InlineSkipList<Comparator>::RecomputeSpliceLevels(const DecodedKey& key,
   }
 }
 
+/*
+ * 调用栈：
+#0  rocksdb::InlineSkipList<rocksdb::MemTableRep::KeyComparator const&>::Insert<false> (this=0x676eb0, key=0x675638 "\fkey1\001\001", splice=0x6753f0,
+    allow_partial_splice_fix=false) at /root/code/rocksdb/memtable/inlineskiplist.h:749
+#1  0x00007ffff717b6f3 in rocksdb::InlineSkipList<rocksdb::MemTableRep::KeyComparator const&>::Insert (this=0x676eb0, key=0x675638 "\fkey1\001\001")
+    at /root/code/rocksdb/memtable/inlineskiplist.h:668
+#2  0x00007ffff717a6b7 in rocksdb::(anonymous namespace)::SkipListRep::InsertKey (this=0x676ea0, handle=0x675638) at /root/code/rocksdb/memtable/skiplistrep.cc:42
+#3  0x00007ffff704509e in rocksdb::MemTable::Add (this=0x675260, s=1, type=rocksdb::kTypeValue, key=..., value=..., kv_prot_info=0x0, allow_concurrent=false,
+    post_process_info=0x0, hint=0x0) at /root/code/rocksdb/db/memtable.cc:586
+#4  0x00007ffff7110d80 in rocksdb::MemTableInserter::PutCFImpl (this=0x7fffffffcc50, column_family_id=0, key=..., value=..., value_type=rocksdb::kTypeValue, kv_prot_info=0x0)
+    at /root/code/rocksdb/db/write_batch.cc:1622
+#5  0x00007ffff7111889 in rocksdb::MemTableInserter::PutCF (this=0x7fffffffcc50, column_family_id=0, key=..., value=...) at /root/code/rocksdb/db/write_batch.cc:1741
+#6  0x00007ffff710a12c in rocksdb::WriteBatchInternal::Iterate (wb=0x7fffffffd630, handler=0x7fffffffcc50, begin=12, end=25) at /root/code/rocksdb/db/write_batch.cc:620
+#7  0x00007ffff7109c24 in rocksdb::WriteBatch::Iterate (this=0x7fffffffd630, handler=0x7fffffffcc50) at /root/code/rocksdb/db/write_batch.cc:561
+#8  0x00007ffff710e15c in rocksdb::WriteBatchInternal::InsertInto (write_group=..., sequence=1, memtables=0x662890, flush_scheduler=0x6565e0, trim_history_scheduler=0x656640,
+    ignore_missing_column_families=false, recovery_log_number=0, db=0x655740, concurrent_memtable_writes=false, seq_per_batch=false, batch_per_txn=true)
+    at /root/code/rocksdb/db/write_batch.cc:2341
+#9  0x00007ffff6f798d5 in rocksdb::DBImpl::WriteImpl (this=0x655740, write_options=..., my_batch=0x7fffffffd630, callback=0x0, log_used=0x0, log_ref=0,
+    disable_memtable=false, seq_used=0x0, batch_cnt=0, pre_release_callback=0x0) at /root/code/rocksdb/db/db_impl/db_impl_write.cc:382
+#10 0x00007ffff6f780bc in rocksdb::DBImpl::Write (this=0x655740, write_options=..., my_batch=0x7fffffffd630) at /root/code/rocksdb/db/db_impl/db_impl_write.cc:53
+#11 0x00007ffff6f81d51 in rocksdb::DB::Put (this=0x655740, opt=..., column_family=0x673e10, key=..., value=...) at /root/code/rocksdb/db/db_impl/db_impl_write.cc:1953
+#12 0x00007ffff6f77efa in rocksdb::DBImpl::Put (this=0x655740, o=..., column_family=0x673e10, key=..., val=...) at /root/code/rocksdb/db/db_impl/db_impl_write.cc:23
+#13 0x00007ffff6ed5c2d in rocksdb::DB::Put (this=0x655740, options=..., key=..., value=...) at /root/code/rocksdb/include/rocksdb/db.h:326
+#14 0x0000000000405942 in main () at blobdb_test.cc:21 
+ */
 template <class Comparator>
 template <bool UseCAS>
 bool InlineSkipList<Comparator>::Insert(const char* key, Splice* splice,
