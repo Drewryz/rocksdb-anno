@@ -402,8 +402,10 @@ bool TableCache::GetFromRowCache(const Slice& user_key, IterKey& row_cache_key,
 #7  0x00000000004058d1 in main () at blobdb_test3.cc:21
  *
  * file_meta持有key所在的sst文件，接下来的搜索将在该sst中进行。
- * 该函数之前的逻辑已经判断过了，要查找的key一定存在且在该文件中。
+ * 因为该函数之前的逻辑已经判断过了，要查找的key一定存在且在该文件中。
  * 
+ * skip_filters：优化参数，跳过，参见提交：e089db40f9c8f2a8af466377ed0f6fd8a3c26456
+ * max_file_size_for_l0_meta_pin：跳过，参考：https://github.com/facebook/rocksdb/issues/6889
  */
 Status TableCache::Get(const ReadOptions& options,
                        const InternalKeyComparator& internal_comparator,
@@ -419,6 +421,7 @@ Status TableCache::Get(const ReadOptions& options,
   IterKey row_cache_key;
   std::string row_cache_entry_buffer;
 
+  /* 关于row cache, 参见提交：782a1590f9d2eb97dd9c1f496e05e5bedb41f3c1 */
   // Check row cache if enabled. Since row cache does not currently store
   // sequence numbers, we cannot use it if we need to fetch the sequence.
   if (ioptions_.row_cache && !get_context->NeedToReadSequence()) {
@@ -431,6 +434,7 @@ Status TableCache::Get(const ReadOptions& options,
     }
   }
 #endif  // ROCKSDB_LITE
+  /* 以下开始读sst文件，然后查数据 */
   Status s;
   TableReader* t = fd.table_reader;
   Cache::Handle* handle = nullptr;

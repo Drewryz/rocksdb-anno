@@ -1949,7 +1949,10 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
 
         PERF_COUNTER_BY_LEVEL_ADD(user_key_return_count, 1,
                                   fp.GetHitFileLevel());
-
+        /*
+         * reading here. 2021-4-5-11:55
+         * 对于blobdb，通过table_cache_->Get(...)将key和value的地址读出来，然后这里才真正的读blob数据 
+         */
         if (is_blob_index) {
           if (do_merge && value) {
             constexpr uint64_t* bytes_read = nullptr;
