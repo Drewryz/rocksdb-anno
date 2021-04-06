@@ -1791,6 +1791,28 @@ Version::Version(ColumnFamilyData* column_family_data, VersionSet* vset,
       version_number_(version_number),
       io_tracer_(io_tracer) {}
 
+/*
+#0  rocksdb::Version::GetBlob (this=0x679290, read_options=..., user_key=..., blob_index_slice=..., value=0x7fffffffd740, bytes_read=0x0)
+    at /root/code/rocksdb/db/version_set.cc:1797
+#1  0x00007ffff70c49a9 in rocksdb::Version::Get (this=0x679290, read_options=..., k=..., value=0x7fffffffd740, timestamp=0x0, status=0x7fffffffdd20,
+    merge_context=0x7fffffffd460, max_covering_tombstone_seq=0x7fffffffd458, value_found=0x0, key_exists=0x0, seq=0x0, callback=0x0, is_blob=0x0, do_merge=true)
+    at /root/code/rocksdb/db/version_set.cc:1961
+#2  0x00007ffff6f324eb in rocksdb::DBImpl::GetImpl (this=0x655740, read_options=..., key=..., get_impl_options=...) at /root/code/rocksdb/db/db_impl/db_impl.cc:1796
+#3  0x00007ffff6f318c3 in rocksdb::DBImpl::Get (this=0x655740, read_options=..., column_family=0x67a420, key=..., value=0x7fffffffd740, timestamp=0x0)
+    at /root/code/rocksdb/db/db_impl/db_impl.cc:1629
+#4  0x00007ffff6f3180e in rocksdb::DBImpl::Get (this=0x655740, read_options=..., column_family=0x67a420, key=..., value=0x7fffffffd740)
+    at /root/code/rocksdb/db/db_impl/db_impl.cc:1619
+#5  0x00007ffff6ed5e50 in rocksdb::DB::Get (this=0x655740, options=..., column_family=0x67a420, key=..., value=0x7fffffffd800) at /root/code/rocksdb/include/rocksdb/db.h:416
+#6  0x00007ffff6ed5f67 in rocksdb::DB::Get (this=0x655740, options=..., key=..., value=0x7fffffffd800) at /root/code/rocksdb/include/rocksdb/db.h:427
+#7  0x00000000004058d1 in main () at blobdb_test3.cc:21 
+ */
+/*
+ * 读取blob数据到value中。
+ * user_key: 传入参数，key数据
+ * blob_index_slice: 传入参数，value在blob中的地址
+ * value: ？？传出参数，应该是实际的value数据
+ * bytes_read: 传出参数，实际多了多少数据？
+ */
 Status Version::GetBlob(const ReadOptions& read_options, const Slice& user_key,
                         const Slice& blob_index_slice, PinnableSlice* value,
                         uint64_t* bytes_read) const {
@@ -1827,7 +1849,7 @@ Status Version::GetBlob(const ReadOptions& read_options, const Slice& user_key,
   if (it == blob_files.end()) {
     return Status::Corruption("Invalid blob file number");
   }
-
+  /* cache handle: RAII跳过 */
   CacheHandleGuard<BlobFileReader> blob_file_reader;
 
   {
@@ -1951,7 +1973,7 @@ void Version::Get(const ReadOptions& read_options, const LookupKey& k,
                                   fp.GetHitFileLevel());
         /*
          * reading here. 2021-4-5-11:55
-         * 对于blobdb，通过table_cache_->Get(...)将key和value的地址读出来，然后这里才真正的读blob数据 
+         * 对于blobdb，通过table_cache_->Get(...)将value的地址读出来，然后这里才真正的读blob数据 
          */
         if (is_blob_index) {
           if (do_merge && value) {

@@ -14,6 +14,11 @@
 
 namespace ROCKSDB_NAMESPACE {
 
+/*
+ * BlobIndex是一个指向blob文件的地址。
+ * 它被存储在LSM中，类型为ValueType::kTypeBlobIndex。
+ * 有三种类型的BlobIndex。
+ */
 // BlobIndex is a pointer to the blob and metadata of the blob. The index is
 // stored in base DB as ValueType::kTypeBlobIndex.
 // There are three types of blob index:
@@ -88,6 +93,7 @@ class BlobIndex {
     return compression_;
   }
 
+  /* 将从lsm树上读到value数据解码 */
   Status DecodeFrom(Slice slice) {
     static const std::string kErrorMessage = "Error while decoding blob index";
     assert(slice.size() > 0);
