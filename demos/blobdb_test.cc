@@ -20,6 +20,9 @@ int main() {
     std::string value = "value1";
     status = db->Put(rocksdb::WriteOptions(), key, value);
     assert(status.ok());
+    rocksdb::FlushOptions flush_opts;
+    status = db->Flush(flush_opts);
+    assert(status.ok());
     status = db->Get(rocksdb::ReadOptions(), key, &value);
     assert(status.ok());
     std::cout << key << ": " << value << std::endl;
