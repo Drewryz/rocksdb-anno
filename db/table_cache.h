@@ -33,6 +33,9 @@ class GetContext;
 class HistogramImpl;
 class InternalIterator;
 
+/*
+ * 所谓的table cache指的是缓冲文件描述符。。 不是缓冲文件数据 
+ */
 class TableCache {
  public:
   TableCache(const ImmutableCFOptions& ioptions,

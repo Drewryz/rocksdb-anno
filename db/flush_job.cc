@@ -122,6 +122,9 @@ void FlushJob::RecordFlushIOStats() {
   IOSTATS_RESET(bytes_written);
 }
 
+/*
+ * 获取当前cfd中所有需要做flush的memtable 
+ */
 void FlushJob::PickMemTable() {
   db_mutex_->AssertHeld();
   assert(!pick_memtable_called);
@@ -144,7 +147,7 @@ void FlushJob::PickMemTable() {
   // will no longer be picked up for recovery.
   edit_->SetLogNumber(mems_.back()->GetNextLogNumber());
   edit_->SetColumnFamily(cfd_->GetID());
-
+  /* reading here */
   // path 0 for level 0 file.
   meta_.fd = FileDescriptor(versions_->NewFileNumber(), 0, 0);
 

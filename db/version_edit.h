@@ -181,6 +181,9 @@ class VersionEdit {
     has_comparator_ = true;
     comparator_ = name.ToString();
   }
+  /*
+   * SetLogNumber(log_num) indicates logs with number smaller than log_num will no longer be picked up for recovery. 
+   */
   void SetLogNumber(uint64_t num) {
     has_log_number_ = true;
     log_number_ = num;

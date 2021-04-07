@@ -80,6 +80,11 @@ struct TableBuilderOptions {
   const uint64_t creation_time;
 };
 
+/*
+ * 可以认为, 一个Table就是一个SST文件, 只不过Table并不会把整个SST文件的内容持有, 而是当写满一个block, 就会flush到SST文件中.
+ * TableBuilder就定义了构建一个Table(SST File)的结构, 主要是Add接口, 接收调用者传进来的kv. 
+ * Finish接口在数据写完之后, 将后续的meta block, index block等写入在data block后面.
+ */
 // TableBuilder provides the interface used to build a Table
 // (an immutable and sorted map from keys to values).
 //

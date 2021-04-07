@@ -23,6 +23,10 @@
 #include "util/sync_point.h"
 
 namespace rocksdb {
+/*
+ * 1. 将系统中logs_容器中除了当前wal日志文件外的所有日志做sync操作，
+ * 2. 并将这些日志迁移到logs_to_free_容器中，等待删除。(MarkLogsSynced)
+ */
 Status DBImpl::SyncClosedLogs(JobContext* job_context) {
   TEST_SYNC_POINT("DBImpl::SyncClosedLogs:Start");
   mutex_.AssertHeld();
@@ -75,6 +79,9 @@ Status DBImpl::SyncClosedLogs(JobContext* job_context) {
   return s;
 }
 
+/*
+ * reading here. 2021-4-6-17:25 
+ */
 Status DBImpl::FlushMemTableToOutputFile(
     ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,
     bool* made_progress, JobContext* job_context, LogBuffer* log_buffer) {
@@ -86,6 +93,7 @@ Status DBImpl::FlushMemTableToOutputFile(
   std::vector<SequenceNumber> snapshot_seqs =
       snapshots_.GetAll(&earliest_write_conflict_snapshot);
 
+  /* reading here. 2021-4-6-10:32 */
   FlushJob flush_job(
       dbname_, cfd, immutable_db_options_, mutable_cf_options, env_options_,
       versions_.get(), &mutex_, &shutting_down_, snapshot_seqs,
@@ -99,14 +107,26 @@ Status DBImpl::FlushMemTableToOutputFile(
   flush_job.PickMemTable();
 
 #ifndef ROCKSDB_LITE
+  /* 通知监听器 */
   // may temporarily unlock and lock the mutex.
   NotifyOnFlushBegin(cfd, &file_meta, mutable_cf_options, job_context->job_id,
                      flush_job.GetTableProperties());
 #endif  // ROCKSDB_LITE
 
+  /* reading here. 2021-4-7-12:12*/
   Status s;
   if (logfile_number_ > 0 &&
       versions_->GetColumnFamilySet()->NumberOfColumnFamilies() > 0) {
+    /*
+     * 如果系统存在多个cfd，每个cfd的memtable的数据与哪个wal日志文件对应，是无法确定的，
+     * 如果要刷当前的cfd的memtable，那必须要将系统所有的wal日志文件做fsync，不然对于同
+     * 一个write batch的数据，当前cfd的数据做了持久化，其余cfd的数据没有做持久化，系统
+     * 崩溃后，那么数据就丢失了，这失去了write batch的写原子性。
+     * 
+     * TODO: SyncClosedLogs没有对当前的wal日志文件做sync，为什么？
+     * immutable永远不可能与当前的wal日志文件对应。因为在切memtable的时候，还会新建log.
+     * 参见:SwitchMemtable
+     */
     // If there are more than one column families, we need to make sure that
     // all the log files except the most recent one are synced. Otherwise if
     // the host crashes after flushing and before WAL is persistent, the
@@ -1149,6 +1169,9 @@ void DBImpl::SchedulePendingPurge(std::string fname, FileType type,
   purge_queue_.push_back(std::move(file_info));
 }
 
+/*
+ * 刷memtable逻辑的入口函数 
+ */
 void DBImpl::BGWorkFlush(void* db) {
   IOSTATS_SET_THREAD_POOL_ID(Env::Priority::HIGH);
   TEST_SYNC_POINT("DBImpl::BGWorkFlush");
@@ -1180,6 +1203,9 @@ void DBImpl::UnscheduleCallback(void* arg) {
   TEST_SYNC_POINT("DBImpl::UnscheduleCallback");
 }
 
+/*
+ * 从全局flush队列中获取需要做flush的cfd，调用FlushMemTableToOutputFile，刷盘
+ */
 Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
                                LogBuffer* log_buffer) {
   mutex_.AssertHeld();
@@ -1247,7 +1273,9 @@ void DBImpl::BackgroundCallFlush() {
 
     auto pending_outputs_inserted_elem =
         CaptureCurrentFileNumberInPendingOutputs();
-
+    /*
+     * 真正做flush的函数
+     */
     Status s = BackgroundFlush(&made_progress, &job_context, &log_buffer);
     if (!s.ok() && !s.IsShutdownInProgress()) {
       // Wait a little bit before retrying background flush in

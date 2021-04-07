@@ -287,6 +287,9 @@ bool MemTableList::IsFlushPending() const {
   return false;
 }
 
+/*
+ * 获取当前cfd中所有需要做flush的memtable 
+ */
 // Returns the memtables that need to be flushed.
 void MemTableList::PickMemtablesToFlush(autovector<MemTable*>* ret) {
   AutoThreadOperationStageUpdater stage_updater(

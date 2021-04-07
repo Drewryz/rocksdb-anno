@@ -1032,6 +1032,11 @@ class DBImpl : public DB {
   /* 一个装有元素类型为ColumnFamilyData的链表，记录了所有需要刷memtable的ColumnFamily  */
   FlushScheduler flush_scheduler_;
 
+  /*
+   * snapshot的创建和删除都需要由一个全局的DoubleLinkList (DBImpl::SnapshotList)管理，
+   * 天然的根据创建时间(同样也是lsn大小)的关系排序，使用之后需要通过DBImpl::ReleaseSnapshot释放。
+   * snapshot还用于在RocksDB事务中实现不同的隔离级别。 
+   */
   SnapshotList snapshots_;
 
   // For each background job, pending_outputs_ keeps the current file number at

@@ -696,7 +696,7 @@ Status DBImpl::SyncWAL() {
 }
 
 /*
- * ?????
+ * 将logs_中除了当前wal日志文件外的所有日志文件迁移到logs_to_free_容器中，等待删除
  */
 void DBImpl::MarkLogsSynced(
     uint64_t up_to, bool synced_dir, const Status& status) {

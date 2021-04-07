@@ -101,6 +101,7 @@ class FlushJob {
 
   // Variables below are set by PickMemTable():
   FileMetaData meta_;
+  /* 记录了等待做flush的memtable */
   autovector<MemTable*> mems_;
   VersionEdit* edit_;
   Version* base_;

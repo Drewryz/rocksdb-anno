@@ -39,6 +39,10 @@ class SnapshotImpl : public Snapshot {
   bool is_write_conflict_boundary_;
 };
 
+/*
+ * 全局的snapshot链表，存储当前系统所有的snapshot。
+ * rocksdb里的每个snapshot大致不过是一个sequence number罢了。 
+ */
 class SnapshotList {
  public:
   SnapshotList() {

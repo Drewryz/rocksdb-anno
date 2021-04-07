@@ -59,6 +59,10 @@ TableBuilder* NewTableBuilder(
       column_family_id, file);
 }
 
+/*
+ * 写memtable的核心函数。
+ * iter用于遍历memtable 
+ */
 Status BuildTable(
     const std::string& dbname, Env* env, const ImmutableCFOptions& ioptions,
     const MutableCFOptions& mutable_cf_options, const EnvOptions& env_options,
@@ -83,6 +87,7 @@ Status BuildTable(
   const size_t kReportFlushIOStatsEvery = 1048576;
   Status s;
   meta->fd.file_size = 0;
+  /* reading here. 2021-4-7-18:27 */
   iter->SeekToFirst();
   std::unique_ptr<RangeDelAggregator> range_del_agg(
       new RangeDelAggregator(internal_comparator, snapshots));
@@ -120,7 +125,7 @@ Status BuildTable(
 
       file_writer.reset(new WritableFileWriter(std::move(file), env_options,
                                                ioptions.statistics));
-
+      /* 通过TableBuilder将数据写入磁盘 */
       builder = NewTableBuilder(
           ioptions, internal_comparator, int_tbl_prop_collector_factories,
           column_family_id, column_family_name, file_writer.get(), compression,
