@@ -89,6 +89,11 @@ extern void DoGenerateLevelFilesBrief(LevelFilesBrief* file_level,
                                       const std::vector<FileMetaData*>& files,
                                       Arena* arena);
 
+/*
+ * Version存储了所有sst的信息，并且提供Get方法，Rocksdb的读写流程将会直接调用这个接口。
+ * 其内部也是用链表组织的维护了next 和prev 两个指针。其内部最主要的数据结构是VersionStorageInfo。
+ * VersionStorageInfo 维护一个二维数组files，保存了每一level上的所有sst文件信息，描述文件信息的数据结构称之为FileMetaData。 
+ */
 class VersionStorageInfo {
  public:
   VersionStorageInfo(const InternalKeyComparator* internal_comparator,

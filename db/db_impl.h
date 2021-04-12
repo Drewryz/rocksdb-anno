@@ -1039,6 +1039,10 @@ class DBImpl : public DB {
    */
   SnapshotList snapshots_;
 
+  /*
+   * 记录了将要生成的sst文件序号。新的SST文件会在flush memtable和compaction时产生。
+   * 该数组记录的sst文件序号是单调递增的。
+   */
   // For each background job, pending_outputs_ keeps the current file number at
   // the time that background job started.
   // FindObsoleteFiles()/PurgeObsoleteFiles() never deletes any file that has
@@ -1089,6 +1093,9 @@ class DBImpl : public DB {
   // invariant(column family present in flush_queue_ <==>
   // ColumnFamilyData::pending_flush_ == true)
   std::deque<ColumnFamilyData*> flush_queue_;
+  /*
+   * 该队列记录了所有需要做compaction的cfd
+   */
   // invariant(column family present in compaction_queue_ <==>
   // ColumnFamilyData::pending_compaction_ == true)
   std::deque<ColumnFamilyData*> compaction_queue_;

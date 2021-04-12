@@ -1055,6 +1055,7 @@ void DBImpl::MaybeScheduleFlushOrCompaction() {
     }
   }
 
+  /* 如果禁止了compaction，则直接返回 */
   if (bg_compaction_paused_ > 0) {
     // we paused the background compaction
     return;
@@ -1330,6 +1331,9 @@ void DBImpl::BackgroundCallFlush() {
   }
 }
 
+/*
+ * compaction的入口函数 
+ */
 void DBImpl::BackgroundCallCompaction(void* arg) {
   bool made_progress = false;
   ManualCompaction* m = reinterpret_cast<ManualCompaction*>(arg);
@@ -1522,6 +1526,9 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // compaction is not necessary. Need to make sure mutex is held
       // until we make a copy in the following code
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
+      /*
+       * PickCompaction用于挑选需要做compaction的文件，具体的信息记录在Compaction对象中
+       */
       c.reset(cfd->PickCompaction(*mutable_cf_options, log_buffer));
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():AfterPickCompaction");
       if (c != nullptr) {
@@ -1638,7 +1645,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
 
     // Clear Instrument
     ThreadStatusUtil::ResetThreadStatus();
-  } else {
+  } else { /* 多个文件开始合并 */
     int output_level  __attribute__((unused)) = c->output_level();
     TEST_SYNC_POINT_CALLBACK("DBImpl::BackgroundCompaction:NonTrivial",
                              &output_level);
@@ -1648,6 +1655,9 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         snapshots_.GetAll(&earliest_write_conflict_snapshot);
 
     assert(is_snapshot_supported_ || snapshots_.empty());
+    /*
+     * reading here. 2021-4-12-21:02 
+     */
     CompactionJob compaction_job(
         job_context->job_id, c.get(), immutable_db_options_, env_options_,
         versions_.get(), &shutting_down_, log_buffer, directories_.GetDbDir(),

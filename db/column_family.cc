@@ -806,6 +806,10 @@ bool ColumnFamilyData::NeedsCompaction() const {
   return compaction_picker_->NeedsCompaction(current_->storage_info());
 }
 
+/*
+ * 根据配置文件的不同，compaction_picker_是不同的compaction对象，
+ * 每种compaction类有自己的PickCompaction方法
+ */
 Compaction* ColumnFamilyData::PickCompaction(
     const MutableCFOptions& mutable_options, LogBuffer* log_buffer) {
   auto* result = compaction_picker_->PickCompaction(

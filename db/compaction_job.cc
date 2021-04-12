@@ -355,6 +355,9 @@ void CompactionJob::ReportStartedCompaction(
   }
 }
 
+/*
+ * reading here. 2021-4-12-21:27 
+ */
 void CompactionJob::Prepare() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_COMPACTION_PREPARE);

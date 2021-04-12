@@ -1219,9 +1219,13 @@ bool LevelCompactionBuilder::SetupOtherInputsIfNeeded() {
   return true;
 }
 
+/*
+ *  
+ */
 Compaction* LevelCompactionBuilder::PickCompaction() {
   // Pick up the first file to start compaction. It may have been extended
   // to a clean cut.
+  /* 主要用来初始化需要Compact的文件. */
   SetupInitialFiles();
   if (start_level_inputs_.empty()) {
     return nullptr;
