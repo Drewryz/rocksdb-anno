@@ -85,6 +85,59 @@ BlobFileBuilder::BlobFileBuilder(
 
 BlobFileBuilder::~BlobFileBuilder() = default;
 
+/*
+ * 调用栈
+#0  rocksdb::BlobFileBuilder::Add (this=0x7fffe8013010, key=..., value=..., blob_index=0x7ffff49e2238) at /root/code/rocksdb/db/blob/blob_file_builder.cc:93
+#1  0x00007ffff6ee6bd8 in rocksdb::CompactionIterator::ExtractLargeValueIfNeededImpl (this=0x7ffff49e1ff0) at /root/code/rocksdb/db/compaction/compaction_iterator.cc:822
+#2  0x00007ffff6ee6ce8 in rocksdb::CompactionIterator::ExtractLargeValueIfNeeded (this=0x7ffff49e1ff0) at /root/code/rocksdb/db/compaction/compaction_iterator.cc:843
+#3  0x00007ffff6ee7415 in rocksdb::CompactionIterator::PrepareOutput (this=0x7ffff49e1ff0) at /root/code/rocksdb/db/compaction/compaction_iterator.cc:949
+#4  0x00007ffff6ee3ea4 in rocksdb::CompactionIterator::SeekToFirst (this=0x7ffff49e1ff0) at /root/code/rocksdb/db/compaction/compaction_iterator.cc:153
+#5  0x00007ffff6e82f7c in rocksdb::BuildTable (dbname=..., versions=0x65fc50, db_options=..., ioptions=..., mutable_cf_options=..., file_options=..., table_cache=0x66d300,
+    iter=0x7ffff49e2c80, range_del_iters=..., meta=0x7ffff49e4280, blob_file_additions=0x7ffff49e3690, internal_comparator=..., int_tbl_prop_collector_factories=0x66c988,
+    column_family_id=0, column_family_name=..., snapshots=..., earliest_write_conflict_snapshot=72057594037927935, snapshot_checker=0x0, compression=rocksdb::kNoCompression,
+    sample_for_compression=0, compression_opts=..., paranoid_file_checks=false, internal_stats=0x66d450, reason=rocksdb::kFlush, io_status=0x7ffff49e3500, io_tracer=...,
+    event_logger=0x656af8, job_id=2, io_priority=rocksdb::Env::IO_HIGH, table_properties=0x7ffff49e40e0, level=0, creation_time=1618127998, oldest_key_time=1618127998,
+    write_hint=rocksdb::Env::WLTH_MEDIUM, file_creation_time=1618128021, db_id=..., db_session_id=..., full_history_ts_low=0x0, blob_callback=0x656d08)
+    at /root/code/rocksdb/db/builder.cc:249
+#6  0x00007ffff70164f7 in rocksdb::FlushJob::WriteLevel0Table (this=0x7ffff49e3fe0) at /root/code/rocksdb/db/flush_job.cc:407
+#7  0x00007ffff7014e84 in rocksdb::FlushJob::Run (this=0x7ffff49e3fe0, prep_tracker=0x656b18, file_meta=0x7ffff49e3f40) at /root/code/rocksdb/db/flush_job.cc:231
+#8  0x00007ffff6f8626d in rocksdb::DBImpl::FlushMemTableToOutputFile (this=0x655740, cfd=0x66c930, mutable_cf_options=..., made_progress=0x7ffff49e579f,
+    job_context=0x7ffff49e55a0, superversion_context=0x7fffe8000c40, snapshot_seqs=..., earliest_write_conflict_snapshot=72057594037927935, snapshot_checker=0x0,
+    log_buffer=0x7ffff49e4ca0, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:210
+#9  0x00007ffff6f86ccb in rocksdb::DBImpl::FlushMemTablesToOutputFiles (this=0x655740, bg_flush_args=..., made_progress=0x7ffff49e579f, job_context=0x7ffff49e55a0,
+    log_buffer=0x7ffff49e4ca0, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:337
+#10 0x00007ffff6f93cea in rocksdb::DBImpl::BackgroundFlush (this=0x655740, made_progress=0x7ffff49e579f, job_context=0x7ffff49e55a0, log_buffer=0x7ffff49e4ca0,
+    reason=0x7ffff49e4c8c, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2539
+#11 0x00007ffff6f94236 in rocksdb::DBImpl::BackgroundCallFlush (this=0x655740, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2577
+#12 0x00007ffff6f931cf in rocksdb::DBImpl::BGWorkFlush (arg=0x6784d0) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2426
+#13 0x00007ffff73807e1 in std::__invoke_impl<void, void (*&)(void*), void*&> (__f=@0x678510: 0x7ffff6f93118 <rocksdb::DBImpl::BGWorkFlush(void*)>, __args#0=@0x678518: 0x6784d0)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:60
+#14 0x00007ffff73803e3 in std::__invoke<void (*&)(void*), void*&> (__fn=@0x678510: 0x7ffff6f93118 <rocksdb::DBImpl::BGWorkFlush(void*)>, __args#0=@0x678518: 0x6784d0)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:95
+#15 0x00007ffff737fbae in std::_Bind<void (*(void*))(void*)>::__call<void, , 0ul>(std::tuple<>&&, std::_Index_tuple<0ul>) (this=0x678510,
+    __args=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x4083b1e, DIE 0x40b55e4>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/functional:400
+#16 0x00007ffff737ef1c in std::_Bind<void (*(void*))(void*)>::operator()<, void>() (this=0x678510) at /opt/rh/devtoolset-8/root/usr/include/c++/8/functional:484
+#17 0x00007ffff737deea in std::_Function_handler<void (), std::_Bind<void (*(void*))(void*)> >::_M_invoke(std::_Any_data const&) (__functor=...)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/std_function.h:297
+#18 0x00007ffff705ff2a in std::function<void ()>::operator()() const (this=0x7ffff49e59a0) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/std_function.h:687
+#19 0x00007ffff737a8b7 in rocksdb::ThreadPoolImpl::Impl::BGThread (this=0x652ef0, thread_id=0) at /root/code/rocksdb/util/threadpool_imp.cc:264
+#20 0x00007ffff737aa90 in rocksdb::ThreadPoolImpl::Impl::BGThreadWrapper (arg=0x657470) at /root/code/rocksdb/util/threadpool_imp.cc:305
+#21 0x00007ffff737d6d3 in std::__invoke_impl<void, void (*)(void*), rocksdb::BGThreadMetadata*>(std::__invoke_other, void (*&&)(void*), rocksdb::BGThreadMetadata*&&) (
+    __f=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x4083b1e, DIE 0x40b824d>,
+    __args#0=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x4083b1e, DIE 0x40b826a>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:60
+#22 0x00007ffff737cb2a in std::__invoke<void (*)(void*), rocksdb::BGThreadMetadata*>(void (*&&)(void*), rocksdb::BGThreadMetadata*&&) (
+    __fn=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x4083b1e, DIE 0x40b9791>,
+    __args#0=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x4083b1e, DIE 0x40b97ae>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:95
+#23 0x00007ffff7380e6f in std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> >::_M_invoke<0ul, 1ul> (this=0x657498)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:244
+#24 0x00007ffff7380e2a in std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> >::operator() (this=0x657498)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:253
+#25 0x00007ffff7380e0e in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> > >::_M_run (this=0x657490)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:196
+#26 0x00007ffff5d99630 in execute_native_thread_routine () at ../../../../../libstdc++-v3/src/c++11/thread.cc:80
+#27 0x00007ffff60b1dd5 in start_thread () from /lib64/libpthread.so.0
+#28 0x00007ffff54ea02d in clone () from /lib64/libc.so.6 
+ */
 Status BlobFileBuilder::Add(const Slice& key, const Slice& value,
                             std::string* blob_index) {
   assert(blob_index);

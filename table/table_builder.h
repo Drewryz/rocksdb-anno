@@ -135,6 +135,9 @@ struct TableBuilderOptions {
   const std::string db_session_id;
 };
 
+/*
+ * 用于构建SST文件的接口
+ */
 // TableBuilder provides the interface used to build a Table
 // (an immutable and sorted map from keys to values).
 //
