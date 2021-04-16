@@ -38,6 +38,7 @@ if [ ! -d $output_dir ]; then
   mkdir -p $output_dir
 fi
 
+# TODO: ????
 # all multithreaded tests run with sync=1 unless
 # $DB_BENCH_NO_SYNC is defined
 syncval="1"
@@ -50,9 +51,12 @@ num_threads=${NUM_THREADS:-64}
 mb_written_per_sec=${MB_WRITE_PER_SEC:-0}
 # Only for tests that do range scans
 num_nexts_per_seek=${NUM_NEXTS_PER_SEEK:-10}
+# TODO: 这里的cache size是block cache吗? 是的
 cache_size=${CACHE_SIZE:-$((17179869184))}
 compression_max_dict_bytes=${COMPRESSION_MAX_DICT_BYTES:-0}
+# 压测时将压缩关掉
 compression_type=${COMPRESSION_TYPE:-zstd}
+# duration压测持续时间
 duration=${DURATION:-0}
 
 num_keys=${NUM_KEYS:-8000000000}
@@ -60,6 +64,7 @@ key_size=${KEY_SIZE:-20}
 value_size=${VALUE_SIZE:-400}
 block_size=${BLOCK_SIZE:-8192}
 
+# 这里的配置项会传入具体的测试case中
 const_params="
   --db=$DB_DIR \
   --wal_dir=$WAL_DIR \
@@ -76,7 +81,7 @@ const_params="
   --compression_type=$compression_type \
   --level_compaction_dynamic_level_bytes=true \
   --bytes_per_sync=$((8 * M)) \
-  --cache_index_and_filter_blocks=0 \
+  --cache_index_and_filter_blocks=$CACHE_INDEX_AND_FILTER_BLOCKS \
   --pin_l0_filter_and_index_blocks_in_cache=1 \
   --benchmark_write_rate_limit=$(( 1024 * 1024 * $mb_written_per_sec )) \
   \
@@ -97,7 +102,10 @@ const_params="
   \
   --memtablerep=skip_list \
   --bloom_bits=10 \
-  --open_files=-1"
+  --open_files=-1 \
+  \
+  --use_direct_io_for_flush_and_compaction=1 \
+  --use_direct_reads=1"
 
 l0_config="
   --level0_file_num_compaction_trigger=4 \
@@ -124,6 +132,10 @@ params_bulkload="$const_params \
 
 params_fillseq="$params_w \
 		--allow_concurrent_memtable_write=false"
+
+params_fillrandom="$params_w \
+		--allow_concurrent_memtable_write=false"
+
 #
 # Tune values for level and universal compaction.
 # For universal compaction, these level0_* options mean total sorted of runs in
@@ -160,6 +172,7 @@ function summarize_result {
   lo_wgb=$( grep "^  L0" $test_out | tail -1 | awk '{ print $9 }' )
   sum_wgb=$( grep "^ Sum" $test_out | tail -1 | awk '{ print $9 }' )
   sum_size=$( grep "^ Sum" $test_out | tail -1 | awk '{ printf "%.1f", $3 / 1024.0 }' )
+  # L0总共写入的其实就是用户的真实数据，所有Level总共写入的数据就是总的数据，所以下面这个计算公式很对
   wamp=$( echo "scale=1; $sum_wgb / $lo_wgb" | bc )
   wmb_ps=$( echo "scale=1; ( $sum_wgb * 1024.0 ) / $uptime" | bc )
   usecs_op=$( grep ^${bench_name} $test_out | awk '{ printf "%.1f", $3 }' )
@@ -296,6 +309,45 @@ function run_univ_compaction {
   done
 }
 
+function run_fillrandom {
+  # This runs with a vector memtable. WAL can be either disabled or enabled
+  # depending on the input parameter (1 for disabled, 0 for enabled). The main
+  # benefit behind disabling WAL is to make loading faster. It is still crash
+  # safe and the client can discover where to restart a load after a crash. I
+  # think this is a good way to load.
+
+  # Make sure that we'll have unique names for all the files so that data won't
+  # be overwritten.
+  if [ $1 == 1 ]; then
+    log_file_name=$output_dir/benchmark_fillrandom.wal_disabled.v${value_size}.log
+    test_name=fillrandom.wal_disabled.v${value_size}
+  else
+    log_file_name=$output_dir/benchmark_fillrandom.wal_enabled.v${value_size}.log
+    test_name=fillrandom.wal_enabled.v${value_size}
+  fi
+
+  echo "Loading $num_keys keys randomly"
+  cmd="./db_bench --benchmarks=fillrandom \
+       --use_existing_db=0 \
+       --sync=0 \
+       $params_fillrandom \
+       --duration=0 \
+       --min_level_to_compress=0 \
+       --threads=1 \
+       --memtablerep=vector \
+       --allow_concurrent_memtable_write=false \
+       --disable_wal=$1 \
+       --enable_blob_files=${ENABLE_BLOB_FILES} \
+       --enable_blob_garbage_collection=${ENABLE_BLOB_FILES} \
+       --seed=$( date +%s ) \
+       2>&1 | tee -a $log_file_name"
+  echo $cmd | tee $log_file_name
+  eval $cmd
+
+  # The constant "fillrandom" which we pass to db_bench is the benchmark name.
+  summarize_result $log_file_name $test_name fillrandom
+}
+
 function run_fillseq {
   # This runs with a vector memtable. WAL can be either disabled or enabled
   # depending on the input parameter (1 for disabled, 0 for enabled). The main
@@ -323,6 +375,8 @@ function run_fillseq {
        --memtablerep=vector \
        --allow_concurrent_memtable_write=false \
        --disable_wal=$1 \
+       --enable_blob_files=${ENABLE_BLOB_FILES} \
+       --enable_blob_garbage_collection=${ENABLE_BLOB_FILES} \
        --seed=$( date +%s ) \
        2>&1 | tee -a $log_file_name"
   echo $cmd | tee $log_file_name
@@ -468,8 +522,16 @@ for job in ${jobs[@]}; do
     run_bulkload
   elif [ $job = fillseq_disable_wal ]; then
     run_fillseq 1
+    db_size=`du -sh ${DB_DIR}`
+    echo "after run_fillseq, db_size: ${db_size}"
   elif [ $job = fillseq_enable_wal ]; then
     run_fillseq 0
+    db_size=`du -sh ${DB_DIR}`
+    echo "after run_fillseq, db_size: ${db_size}"
+  elif [ $job = run_fillrandom ]; then
+    run_fillrandom 0
+    db_size=`du -sh ${DB_DIR}`
+    echo "after run_fillrandom, db_size: ${db_size}"
   elif [ $job = overwrite ]; then
     syncval="0"
     params_w="$params_w \
@@ -478,6 +540,8 @@ for job in ${jobs[@]}; do
 	--soft_pending_compaction_bytes_limit=$((1 * T)) \
 	--hard_pending_compaction_bytes_limit=$((4 * T)) "
     run_change overwrite
+    db_size=`du -sh ${DB_DIR}`
+    echo "after overwrite, db_size: ${db_size}"
   elif [ $job = updaterandom ]; then
     run_change updaterandom
   elif [ $job = mergerandom ]; then

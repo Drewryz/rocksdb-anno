@@ -2412,6 +2412,9 @@ class Duration {
   uint64_t start_at_;
 };
 
+/*
+ * 压测任务的主类 
+ */
 class Benchmark {
  private:
   std::shared_ptr<Cache> cache_;
@@ -2788,7 +2791,7 @@ class Benchmark {
                                              FLAGS_use_block_based_filter)
                       : nullptr),
         prefix_extractor_(NewFixedPrefixTransform(FLAGS_prefix_size)),
-        num_(FLAGS_num),
+        num_(FLAGS_num), /* 插入多少kv对 */
         key_size_(FLAGS_key_size),
         user_timestamp_size_(FLAGS_user_timestamp_size),
         prefix_size_(FLAGS_prefix_size),
@@ -3419,7 +3422,7 @@ class Benchmark {
       if (post_process_method != nullptr) {
         (this->*post_process_method)();
       }
-    }
+    } // end while
 
     if (secondary_update_thread_) {
       secondary_update_stopped_.store(1, std::memory_order_relaxed);
@@ -3506,6 +3509,10 @@ class Benchmark {
     }
   }
 
+  /*
+   * n: 线程数目
+   * method: 具体压测逻辑入口函数
+   */
   Stats RunBenchmark(int n, Slice name,
                      void (Benchmark::*method)(ThreadState*)) {
     SharedState shared;
@@ -7578,6 +7585,9 @@ class Benchmark {
   }
 };
 
+/*
+ * 压测入口 
+ */
 int db_bench_tool(int argc, char** argv) {
   ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   static bool initialized = false;
@@ -7722,6 +7732,12 @@ int db_bench_tool(int argc, char** argv) {
     exit(1);
   }
 
+  /*
+   * 这行代码以上的代码只是设置了用于指定的压测参数
+   * 用户指定的压测参数，通过gflags库完成。
+   * 可以将用户指定的压测参数当做全局变量。
+   * 关于gfalgs，参见：http://blog.chinaunix.net/uid-20196318-id-3440642.html
+   */
   ROCKSDB_NAMESPACE::Benchmark benchmark;
   benchmark.Run();
 
