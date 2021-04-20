@@ -117,6 +117,9 @@ enum UpdateStatus {    // Return status For inplace update callback
 
 
 struct AdvancedColumnFamilyOptions {
+  /*
+   * 内存中可以持有的最大memtable个数 
+   */
   // The maximum number of write buffers that are built up in memory.
   // The default and the minimum number is 2, so that when 1 write buffer
   // is being flushed to storage, new writes can continue to the other
@@ -130,6 +133,9 @@ struct AdvancedColumnFamilyOptions {
   // Dynamically changeable through SetOptions() API
   int max_write_buffer_number = 2;
 
+  /*
+   * 至少有多少个memtable做完merge以后，才能被写入磁盘 
+   */
   // The minimum number of write buffers that will be merged together
   // before writing to storage.  If set to 1, then
   // all write buffers are flushed to L0 as individual files and this increases
@@ -318,6 +324,9 @@ struct AdvancedColumnFamilyOptions {
   // change when data grows.
   std::vector<CompressionType> compression_per_level;
 
+  /*
+   * LSM树最多有多少层 
+   */
   // Number of levels for this database
   int num_levels = 7;
 
@@ -351,6 +360,9 @@ struct AdvancedColumnFamilyOptions {
   // Dynamically changeable through SetOptions() API
   uint64_t target_file_size_base = 64 * 1048576;
 
+  /*
+   * 下一层单个SST文件是上一层单个SST文件大小的几倍
+   */
   // By default target_file_size_multiplier is 1, which means
   // by default files in different levels will have similar size.
   //
@@ -416,6 +428,9 @@ struct AdvancedColumnFamilyOptions {
   // Default: false
   bool level_compaction_dynamic_level_bytes = false;
 
+  /*
+   * 下一层SST文件的总大小最大值是当前层SST文件总大小最大值的几倍 
+   */
   // Default: 10.
   //
   // Dynamically changeable through SetOptions() API

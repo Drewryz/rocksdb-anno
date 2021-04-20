@@ -51,6 +51,7 @@
 #include "util/stop_watch.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
+#include <stdio.h>
 
 namespace rocksdb {
 
@@ -429,6 +430,12 @@ bool SomeFileOverlapsRange(
 
 namespace {
 
+/*
+ * 遍历一个SST文件集合中的SST文件本身，而不是SST文件中kv对, 其中:
+ * Next() 移动到集合中的下一个文件
+ * key() 当前文件的最大key
+ * value() 当前文件的信息(FileDescriptor)
+ */
 // An internal iterator.  For a given version/level pair, yields
 // information about the files in the level.  For a given entry, key()
 // is the largest key that occurs in the file, and value() is an
@@ -436,6 +443,9 @@ namespace {
 // encoded using EncodeFixed64.
 class LevelFileNumIterator : public InternalIterator {
  public:
+ /*
+  * flevel: 同一层的SST文件集合
+  */
   LevelFileNumIterator(const InternalKeyComparator& icmp,
                        const LevelFilesBrief* flevel, bool should_sample)
       : icmp_(icmp),
@@ -489,6 +499,10 @@ class LevelFileNumIterator : public InternalIterator {
  private:
   const InternalKeyComparator icmp_;
   const LevelFilesBrief* flevel_;
+  /*
+   * index_是flevel_的索引, eg
+   * flevel_[0], flevel_[1], ... 
+   */
   uint32_t index_;
   mutable FileDescriptor current_value_;
   bool should_sample_;
@@ -3639,6 +3653,18 @@ void VersionSet::AddLiveFiles(std::vector<FileDescriptor>* live_list) {
   }
 }
 
+/*
+ * 对L0层的每个SST文件都创建一个Iterator对象，而非L0层，一个层创建一个Iterator对象，然后
+ * 将创建的所有Iterator对象merge后返回。
+ * TODO:
+ * 1. InternalIterator
+ * 2. NewIterator
+ * 3. NewTwoLevelIterator
+ * 4. InternalIterator是干嘛用的
+ * 
+ * 至于为什么L0层的每个SST文件都需要创建一个Iterator对象，而非L0层，一个层才创建一个Iterator对象，猜测：
+ * L0层的SST文件是彼此交错的，但是非L0层的SST文件之间是有序的
+ */
 InternalIterator* VersionSet::MakeInputIterator(
     const Compaction* c, RangeDelAggregator* range_del_agg) {
   auto cfd = c->column_family_data();
@@ -3651,6 +3677,10 @@ InternalIterator* VersionSet::MakeInputIterator(
   // (b) CompactionFilter::Decision::kRemoveAndSkipUntil.
   read_options.total_order_seek = true;
 
+  /* reading here. 2021-4-20-17:23 */
+  /*
+   * space表示要生成多少个Iterator
+   */
   // Level-0 files have to be merged together.  For other levels,
   // we will make a concatenating iterator per level.
   // TODO(opt): use concatenating iterator for level-0 if there is no overlap
@@ -3659,9 +3689,13 @@ InternalIterator* VersionSet::MakeInputIterator(
                                         : c->num_input_levels());
   InternalIterator** list = new InternalIterator* [space];
   size_t num = 0;
+  /* 遍历参与compact的所有level */
   for (size_t which = 0; which < c->num_input_levels(); which++) {
     if (c->input_levels(which)->num_files != 0) {
       if (c->level(which) == 0) {
+        /*
+         * 对于L0层的每一个SST文件都会新建一个Iterator对象
+         */
         const LevelFilesBrief* flevel = c->input_levels(which);
         for (size_t i = 0; i < flevel->num_files; i++) {
           list[num++] = cfd->table_cache()->NewIterator(
@@ -3673,6 +3707,9 @@ InternalIterator* VersionSet::MakeInputIterator(
               false /* skip_filters */, (int)which /* level */);
         }
       } else {
+        /*
+         * 对于非L0层
+         */
         // Create concatenating iterator for the files from this level
         list[num++] = NewTwoLevelIterator(
             new LevelFileIteratorState(
@@ -3689,6 +3726,8 @@ InternalIterator* VersionSet::MakeInputIterator(
     }
   }
   assert(num <= space);
+  /* TODO: reading here. 2021-4-20-21:28 */
+  /* TODO: NewMergingIterator */
   InternalIterator* result =
       NewMergingIterator(&c->column_family_data()->internal_comparator(), list,
                          static_cast<int>(num));

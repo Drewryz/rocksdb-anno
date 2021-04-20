@@ -1111,6 +1111,7 @@ class DBImpl : public DB {
   // count how many background compactions are running or have been scheduled
   int bg_compaction_scheduled_;
 
+  /* 进行中的compact_job数目 */
   // stores the number of compactions are currently running
   int num_running_compactions_;
 

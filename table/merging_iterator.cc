@@ -42,7 +42,7 @@ class MergingIterator : public InternalIterator {
         current_(nullptr),
         direction_(kForward),
         minHeap_(comparator_),
-        prefix_seek_mode_(prefix_seek_mode),
+        prefix_seek_mode_(prefix_seek_mode), 
         pinned_iters_mgr_(nullptr) {
     children_.resize(n);
     for (int i = 0; i < n; i++) {
@@ -320,7 +320,9 @@ class MergingIterator : public InternalIterator {
     kReverse
   };
   Direction direction_;
+  /* TODO */
   MergerMinIterHeap minHeap_;
+  /* 一般为false */
   bool prefix_seek_mode_;
 
   // Max heap is used for reverse iteration, which is way less common than

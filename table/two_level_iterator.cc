@@ -19,6 +19,11 @@ namespace rocksdb {
 
 namespace {
 
+/*
+ * 所谓TwoLevelIterator指的是，我们遍历的数据有两层，第二层依赖于第一层，举个例子：
+ * 对于同一个level的一个SST集合来说，如果我们要遍历这个SST集合中的所有kv对，那么需
+ * 要首先确定要遍历哪个SST文件，然后要确定要遍历SST文件的哪个位置。 
+ */
 class TwoLevelIterator : public InternalIterator {
  public:
   explicit TwoLevelIterator(TwoLevelIteratorState* state,

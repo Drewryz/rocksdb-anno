@@ -368,6 +368,7 @@ void CompactionJob::Prepare() {
   assert(c->column_family_data()->current()->storage_info()
       ->NumLevelFiles(compact_->compaction->level()) > 0);
 
+  /* 输出层是否是最后一层 */
   // Is this compaction producing files at the bottommost level?
   bottommost_level_ = c->bottommost_level();
 
@@ -525,6 +526,9 @@ Status CompactionJob::Run() {
   assert(num_threads > 0);
   const uint64_t start_micros = env_->NowMicros();
 
+  /*
+   * 根据subcompaction的个数，启动一个线程池，用来并行处理ProcessKeyValueCompaction
+   */
   // Launch a thread for each of subcompactions 1...num_threads-1
   std::vector<port::Thread> thread_pool;
   thread_pool.reserve(num_threads - 1);
@@ -533,6 +537,9 @@ Status CompactionJob::Run() {
                              &compact_->sub_compact_states[i]);
   }
 
+  /*
+   * 真正读kv对以及写kv对的函数，这个函数执行完以后，compact大部分的工作就完成了
+   */
   // Always schedule the first subcompaction (whether or not there are also
   // others) in the current thread to be efficient with resources
   ProcessKeyValueCompaction(&compact_->sub_compact_states[0]);
@@ -568,6 +575,7 @@ Status CompactionJob::Run() {
   }
   compact_->compaction->SetOutputTableProperties(std::move(tp));
 
+  /* 记录一些状态信息 */
   // Finish up all book-keeping to unify the subcompaction results
   AggregateStatistics();
   UpdateCompactionStats();

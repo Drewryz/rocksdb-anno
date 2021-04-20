@@ -15,6 +15,9 @@ namespace rocksdb {
 
 class PinnedIteratorsManager;
 
+/*
+ * 好吧，接口上来看，就是定义了Iterator语义 
+ */
 class InternalIterator : public Cleanable {
  public:
   InternalIterator() {}

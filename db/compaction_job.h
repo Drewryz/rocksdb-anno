@@ -132,9 +132,11 @@ class CompactionJob {
   Env* env_;
   VersionSet* versions_;
   const std::atomic<bool>* shutting_down_;
+  /* 业务日志输出 */
   LogBuffer* log_buffer_;
   Directory* db_directory_;
   Directory* output_directory_;
+  /* 数据指标统计，引用了DBImpl的stat对象 */
   Statistics* stats_;
   InstrumentedMutex* db_mutex_;
   Status* db_bg_error_;

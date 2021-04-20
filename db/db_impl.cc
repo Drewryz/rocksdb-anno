@@ -1919,6 +1919,10 @@ void DBImpl::GetApproximateSizes(ColumnFamilyHandle* column_family,
   ReturnAndCleanupSuperVersion(cfd, sv);
 }
 
+/*
+ * 获取全局下一个SST文件编号，将其写入pending_outputs_中，
+ * 然后返回指向该文件编号位置的迭代器。
+ */
 std::list<uint64_t>::iterator
 DBImpl::CaptureCurrentFileNumberInPendingOutputs() {
   // We need to remember the iterator of our insert, because after the

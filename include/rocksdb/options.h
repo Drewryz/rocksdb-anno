@@ -170,6 +170,9 @@ struct ColumnFamilyOptions : public AdvancedColumnFamilyOptions {
   // -------------------
   // Parameters that affect performance
 
+  /*
+   * 每个memtable最大size 
+   */
   // Amount of data to build up in memory (backed by an unsorted log
   // on disk) before converting to a sorted on-disk file.
   //
@@ -723,6 +726,9 @@ struct DBOptions {
 
   void Dump(Logger* log) const;
 
+  /*
+   * 每写入多少数据做一次sync 
+   */
   // Allows OS to incrementally sync files to disk while they are being
   // written, asynchronously, in the background. This operation can be used
   // to smooth out write I/Os over time. Users shouldn't rely on it for

@@ -263,6 +263,7 @@ class Compaction {
 
   VersionStorageInfo* input_vstorage_;
 
+  /* 输入层 */
   const int start_level_;    // the lowest level to be compacted
   const int output_level_;  // levels to which output files are stored
   uint64_t max_output_file_size_;
@@ -280,6 +281,11 @@ class Compaction {
   // If true, then the comaction can be done by simply deleting input files.
   const bool deletion_compaction_;
 
+  /*
+   * inputs_包含了所有的输入文件，其中的数据按照level组织，即
+   * inputs_[0]是Li层的输入文件集合，inputs_[1]是Li+1层的输入文件集合，...
+   * 注意inputs_既包括了输入层文件集合，也包括了输出层文件集合
+   */
   // Compaction input files organized by level. Constant after construction
   const std::vector<CompactionInputFiles> inputs_;
 
@@ -306,6 +312,7 @@ class Compaction {
   // Does input compression match the output compression?
   bool InputCompressionMatchesOutput() const;
 
+  /* 本次compact新产生的表 */
   // table properties of output files
   TablePropertiesCollection output_table_properties_;
 

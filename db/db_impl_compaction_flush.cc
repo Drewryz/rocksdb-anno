@@ -1180,6 +1180,11 @@ void DBImpl::BGWorkFlush(void* db) {
   TEST_SYNC_POINT("DBImpl::BGWorkFlush:done");
 }
 
+/*
+ * compaction的入口函数，由后台线程执行.
+ * 该函数的入参是一个CompactionArg对象.
+ * BGWorkCompaction会调用cf的BackgroundCallCompaction来执行compact
+ */
 void DBImpl::BGWorkCompaction(void* arg) {
   CompactionArg ca = *(reinterpret_cast<CompactionArg*>(arg));
   delete reinterpret_cast<CompactionArg*>(arg);
@@ -1340,11 +1345,16 @@ void DBImpl::BackgroundCallCompaction(void* arg) {
   JobContext job_context(next_job_id_.fetch_add(1), true);
   TEST_SYNC_POINT("BackgroundCallCompaction:0");
   MaybeDumpStats();
+  /* 业务日志输出 */
   LogBuffer log_buffer(InfoLogLevel::INFO_LEVEL,
                        immutable_db_options_.info_log.get());
   {
     InstrumentedMutexLock l(&mutex_);
 
+    /*
+     * 关于ingest，参见：https://blog.csdn.net/Z_Stand/article/details/115799605
+     * 与主流程无关，跳过 
+     */
     // This call will unlock/lock the mutex to wait for current running
     // IngestExternalFile() calls to finish.
     WaitForIngestFile();
@@ -1425,6 +1435,9 @@ void DBImpl::BackgroundCallCompaction(void* arg) {
   }
 }
 
+/*
+ * log_buffer与业务日志输出相关
+ */
 Status DBImpl::BackgroundCompaction(bool* made_progress,
                                     JobContext* job_context,
                                     LogBuffer* log_buffer, void* arg) {
@@ -1462,6 +1475,13 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     manual_compaction->in_progress = true;
   }
 
+  /* 以上代码是一些边界判断，可以先忽略 */
+
+  /*
+   * Compaction记录了当前compact工作的一些信息，包括:
+   * inputs集合
+   * output_level_inputs集合 
+   */
   unique_ptr<Compaction> c;
   // InternalKey manual_end_storage;
   // InternalKey* manual_end = &manual_end_storage;
@@ -1526,6 +1546,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
       // compaction is not necessary. Need to make sure mutex is held
       // until we make a copy in the following code
       TEST_SYNC_POINT("DBImpl::BackgroundCompaction():BeforePickCompaction");
+      /* TODO: PickCompaction */
       /*
        * PickCompaction用于挑选需要做compaction的文件，具体的信息记录在Compaction对象中
        */
@@ -1548,6 +1569,11 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
         // compaction, we might be able to execute it in parallel, so we add it
         // to the queue and schedule a new thread.
         if (cfd->NeedsCompaction()) {
+          /*
+           * 尽管当前的compact未开始执行，但是从一个level挑选一些SST文件做compact后，
+           * 此时该level的score就发生了变化。这里，rocksdb会再次检测该cfd是否需要做
+           * compact，如果需要的话，那么将该cfd再次加入全局compact队列
+           */
           // Yes, we need more compactions!
           AddToCompactionQueue(cfd);
           ++unscheduled_compactions_;
@@ -1583,6 +1609,11 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
                      c->num_input_files(0));
     *made_progress = true;
   } else if (!trivial_move_disallowed && c->IsTrivialMove()) {
+    /*
+     * 当compact level的范围内只有1个文件且与level+1没有重叠则采用TrivialMove。
+     * 因为2层level之间没有 重叠，则简单的将level的文件移动到level+1层即可。
+     */
+    /* reading here. 2021-4-20-14:51 */
     TEST_SYNC_POINT("DBImpl::BackgroundCompaction:TrivialMove");
     // Instrument for event update
     // TODO(yhchiang): add op details for showing trivial-move.
@@ -1645,7 +1676,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
 
     // Clear Instrument
     ThreadStatusUtil::ResetThreadStatus();
-  } else { /* 多个文件开始合并 */
+  } else { /* 常规compaction逻辑 */
     int output_level  __attribute__((unused)) = c->output_level();
     TEST_SYNC_POINT_CALLBACK("DBImpl::BackgroundCompaction:NonTrivial",
                              &output_level);
