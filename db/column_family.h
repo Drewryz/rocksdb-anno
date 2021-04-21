@@ -229,7 +229,6 @@ class ColumnFamilyData {
    * 从上面的调用栈看来，一个cf的memtable完成flush以后，才会推进log_number_
    */
   void SetLogNumber(uint64_t log_number) {
-    printf("%llu marli\n", (long long unsigned int)log_number);
     log_number_ = log_number; 
   }
   uint64_t GetLogNumber() const { return log_number_; }

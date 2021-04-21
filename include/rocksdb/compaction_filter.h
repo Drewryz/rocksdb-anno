@@ -102,6 +102,10 @@ class CompactionFilter {
     return false;
   }
 
+  /*
+   * 在compaction的过程中，如果遇到了数据是merge进来的，那么就会调用该函数。
+   * 如果函数返回true，则该数据会被丢弃，不会output
+   */
   // The compaction process invokes this method on every merge operand. If this
   // method returns true, the merge operand will be ignored and not written out
   // in the compaction output

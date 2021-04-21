@@ -717,6 +717,10 @@ class DB {
     GetApproximateSizes(column_family, range, n, sizes, include_flags);
   }
 
+  /*
+   * 关于CompactRange, 参见:
+   * https://github.com/facebook/rocksdb/wiki/Manual-Compaction 
+   */
   // Compact the underlying storage for the key range [*begin,*end].
   // The actual compaction interval might be superset of [*begin, *end].
   // In particular, deleted and overwritten versions are discarded,

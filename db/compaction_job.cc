@@ -723,6 +723,12 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
   }
 
+  /*
+   * reading here. 2021-4-21-21:46
+   * TODO: 
+   * 1. compaction_filter
+   * 2. MergeHelper
+   */
   auto compaction_filter = cfd->ioptions()->compaction_filter;
   std::unique_ptr<CompactionFilter> compaction_filter_from_factory = nullptr;
   if (compaction_filter == nullptr) {
