@@ -121,7 +121,7 @@ void CompactionIterator::SeekToFirst() {
 void CompactionIterator::Next() {
   // If there is a merge output, return it before continuing to process the
   // input.
-  if (merge_out_iter_.Valid()) {
+  if (merge_out_iter_.Valid()) { /* 如果没有merge操作符，一定invalid */
     merge_out_iter_.Next();
 
     // Check if we returned all records of the merge output.
@@ -163,15 +163,35 @@ void CompactionIterator::Next() {
   PrepareOutput();
 }
 
+/*
+ * TODO: 接下来需要探究一个问题：当第二次读数据时，会发生什么 
+ * reading here. 2021-4-22-17:56
+ */
+/* 获取下一个kv对 */
+/*
+ * 1. 从input iterator，获取key和value
+ * 2. 将从input iterator，获取的key解析出来，记为ikey_ 
+ * 3. 这一步主要记录一些状态信息，包括当前key等
+ *    1) 当前的user_key与上一次记录的user_key不相同，也就是说迭代的时候user_key发生了变化，则:
+ *    2) user_key未发生变化, 则：
+ * 4. 然后根据ikey_, 来做一些操作：
+ *    1) 如果ikey的type为kTypeSingleDeletion，则：
+ *    2) 如果last_snapshot == current_user_key_snapshot_，则：
+ *    3) 如果ikey的type为kTypeDeletion，则：
+ *    4) 如果ikey的type为kTypeMerge，则：
+ *    5) 以上都不满足，则：将valid置为false，退出循环
+ */
 void CompactionIterator::NextFromInput() {
   at_next_ = false;
   valid_ = false;
 
   while (!valid_ && input_->Valid() && !IsShuttingDown()) {
+    /* 从input iterator，获取key和value */
     key_ = input_->key();
     value_ = input_->value();
     iter_stats_.num_input_records++;
 
+    /* 将从input iterator，获取的key解析出来，记为ikey_ */
     if (!ParseInternalKey(key_, &ikey_)) {
       // If `expect_valid_internal_key_` is false, return the corrupted key
       // and let the caller decide what to do with it.
@@ -209,6 +229,9 @@ void CompactionIterator::NextFromInput() {
     // compaction filter). ikey_.user_key is pointing to the copy.
     if (!has_current_user_key_ ||
         !cmp_->Equal(ikey_.user_key, current_user_key_)) {
+      /*
+       * 如果当前的user_key与上一次记录的user_key不相同，也就是说迭代的时候user_key发生了变化 
+       */
       // First occurrence of this user key
       // Copy key for output
       key_ = current_key_.SetInternalKey(key_, &ikey_);
@@ -216,6 +239,7 @@ void CompactionIterator::NextFromInput() {
       has_current_user_key_ = true;
       has_outputted_key_ = false;
       current_user_key_sequence_ = kMaxSequenceNumber;
+      /* ！！！如果user_key发生了变化，current_user_key_snapshot_设置为0，last_snapshot也被设置为0 */
       current_user_key_snapshot_ = 0;
 
 #ifndef ROCKSDB_LITE
@@ -272,7 +296,7 @@ void CompactionIterator::NextFromInput() {
           skip_until = compaction_filter_skip_until_.Encode();
         }
       }
-    } else {
+    } else { /* user_key未发生变化 */
 #ifndef ROCKSDB_LITE
       if (compaction_listener_) {
         compaction_listener_->OnCompaction(compaction_->level(), ikey_.user_key,
@@ -436,6 +460,10 @@ void CompactionIterator::NextFromInput() {
         at_next_ = true;
       }
     } else if (last_snapshot == current_user_key_snapshot_) {
+      /*
+       * 这里实现rocksdb的mvcc的垃圾回收：
+       * 多个相同的user key，并且位于同一个snapshot的记录，只会输出sequence最高的那个记录。
+       */
       // If the earliest snapshot is which this key is visible in
       // is the same as the visibility of a previous instance of the
       // same key, then this kv is not visible in any snapshot.
@@ -530,13 +558,14 @@ void CompactionIterator::NextFromInput() {
     if (need_skip) {
       input_->Seek(skip_until);
     }
-  }
+  } // end while
 
   if (!valid_ && IsShuttingDown()) {
     status_ = Status::ShutdownInProgress();
   }
 }
 
+/* TODO: */
 void CompactionIterator::PrepareOutput() {
   // Zeroing out the sequence number leads to better compression.
   // If this is the bottommost level (no files in lower levels)

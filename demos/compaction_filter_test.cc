@@ -42,7 +42,7 @@ int main() {
   system("rm ./compactionfiltertest");
   rocksdb::Options options;
   options.create_if_missing = true;
-  options.compaction_filter = &filter;
+  // options.compaction_filter = &filter;
   status = rocksdb::DB::Open(options, "./compactionfiltertest", &raw_db);
   assert(status.ok());
   std::unique_ptr<rocksdb::DB> db(raw_db);

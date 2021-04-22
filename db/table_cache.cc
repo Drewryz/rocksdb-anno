@@ -225,6 +225,7 @@ InternalIterator* TableCache::NewIterator(
   }
   InternalIterator* result = nullptr;
   if (s.ok()) {
+    /* 一般来说，此处调用的应该是BlockBasedTable::NewIterator函数 */
     result =
       table_reader->NewIterator(options, arena, &icomparator, skip_filters);
     if (create_new_table_reader) {

@@ -60,6 +60,7 @@
 #include "util/stop_watch.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
+#include <stdio.h>
 
 namespace rocksdb {
 
@@ -676,6 +677,9 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
   ColumnFamilyData* cfd = sub_compact->compaction->column_family_data();
   std::unique_ptr<RangeDelAggregator> range_del_agg(
       new RangeDelAggregator(cfd->internal_comparator(), existing_snapshots_));
+  /*
+   * 注意这一步构建了一个迭代器，这个迭代器可以迭代所有参与compaction的SST文件 
+   */
   std::unique_ptr<InternalIterator> input(versions_->MakeInputIterator(
       sub_compact->compaction, range_del_agg.get()));
 
@@ -729,6 +733,9 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
    * 1. compaction_filter
    * 2. MergeHelper
    */
+  /*
+   * 如果用户指定了compaction filter，那么则初始化，否则compaction_filter还是null
+   */
   auto compaction_filter = cfd->ioptions()->compaction_filter;
   std::unique_ptr<CompactionFilter> compaction_filter_from_factory = nullptr;
   if (compaction_filter == nullptr) {
@@ -736,6 +743,10 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
         sub_compact->compaction->CreateCompactionFilter();
     compaction_filter = compaction_filter_from_factory.get();
   }
+
+  /*
+   * 如果用户指定了merge operator，那么则初始化，否则可以忽略
+   */
   MergeHelper merge(
       env_, cfd->user_comparator(), cfd->ioptions()->merge_operator,
       compaction_filter, db_options_.info_log.get(),
@@ -766,7 +777,15 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
   }
 #endif  // ROCKSDB_LITE
+  if (comp_event_listener == nullptr) {
+    printf("bnv1\n");
+  } else {
+    printf("bnv2\n");
+  }
 
+  /*
+   * TODO: CompactionIterator
+   */
   Status status;
   sub_compact->c_iter.reset(new CompactionIterator(
       input.get(), cfd->user_comparator(), &merge, versions_->LastSequence(),

@@ -136,9 +136,13 @@ class CompactionIterator {
   const std::atomic<bool>* shutting_down_;
   bool bottommost_level_;
   bool valid_ = false;
+  /* 数据多版本相关，如果snapshot为空，则为true */
   bool visible_at_tip_;
+  /* 执行compaction时，系统最早存在的snapshot */
   SequenceNumber earliest_snapshot_;
+  /* 执行compaction时，系统最新的snapshot */
   SequenceNumber latest_snapshot_;
+  /* ？？？ */
   bool ignore_snapshots_;
 
   // State
