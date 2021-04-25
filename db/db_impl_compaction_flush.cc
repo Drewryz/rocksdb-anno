@@ -1705,6 +1705,7 @@ Status DBImpl::BackgroundCompaction(bool* made_progress,
     TEST_SYNC_POINT("DBImpl::BackgroundCompaction:NonTrivial:AfterRun");
     mutex_.Lock();
 
+    /* 这一步似乎就输出了一些日志？ */
     status = compaction_job.Install(*c->mutable_cf_options());
     if (status.ok()) {
       InstallSuperVersionAndScheduleWorkWrapper(

@@ -129,6 +129,9 @@ class TablePropertiesCollectorFactory {
   virtual const char* Name() const = 0;
 };
 
+/*
+ * 记录一个SST文件的一些信息 
+ */
 // TableProperties contains a bunch of read-only properties of its associated
 // table.
 struct TableProperties {

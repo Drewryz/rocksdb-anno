@@ -330,6 +330,7 @@ class MergingIterator : public InternalIterator {
   std::unique_ptr<MergerMaxIterHeap> maxHeap_;
   PinnedIteratorsManager* pinned_iters_mgr_;
 
+  /* 堆顶元素 */
   IteratorWrapper* CurrentForward() const {
     assert(direction_ == kForward);
     return !minHeap_.empty() ? minHeap_.top() : nullptr;
