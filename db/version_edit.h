@@ -544,6 +544,9 @@ class VersionEdit {
 
   // return true on success.
   bool EncodeTo(std::string* dst) const;
+  /*
+   * 一般在启动实例的时候会从manifest文件中读取内容，然后通过调用该函数进行解析。 
+   */
   Status DecodeFrom(const Slice& src);
 
   std::string DebugString(bool hex_key = false) const;

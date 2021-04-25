@@ -571,6 +571,7 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       case kBlobFileGarbage:
       case kBlobFileGarbage_DEPRECATED: {
         BlobFileGarbage blob_file_garbage;
+        /* TODO: input是什么 */
         const Status s = blob_file_garbage.DecodeFrom(&input);
         if (!s.ok()) {
           return s;

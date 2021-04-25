@@ -18,6 +18,10 @@ class JSONWriter;
 class Slice;
 class Status;
 
+/*
+ * 用于描述一个被认为是垃圾的blob数据文件？
+ * 那哪个地方创建了它，就认为那个地方与垃圾回收相关 
+ */
 class BlobFileGarbage {
  public:
   BlobFileGarbage() = default;
@@ -33,6 +37,7 @@ class BlobFileGarbage {
   uint64_t GetGarbageBlobBytes() const { return garbage_blob_bytes_; }
 
   void EncodeTo(std::string* output) const;
+  /* 从一个slice数据，解析出blob_file_number_/garbage_blob_count_/garbage_blob_bytes_数据域 */
   Status DecodeFrom(Slice* input);
 
   std::string DebugString() const;

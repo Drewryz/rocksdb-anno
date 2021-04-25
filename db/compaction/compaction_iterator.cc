@@ -813,6 +813,11 @@ void CompactionIterator::NextFromInput() {
   }
 }
 
+/*
+ * 将value写入blob file中，如果成功写入则返回true，否则返回false
+ * blob_file_builder_->Add会判断value是否满足kv分离的条件，不满足则blob_index_为empty
+ * 成功写入到blob文件后，会将CompactionIterator的value_改为blob地址
+ */
 bool CompactionIterator::ExtractLargeValueIfNeededImpl() {
   if (!blob_file_builder_) {
     return false;
@@ -848,6 +853,12 @@ void CompactionIterator::ExtractLargeValueIfNeeded() {
   current_key_.UpdateInternalKey(ikey_.sequence, ikey_.type);
 }
 
+/*
+ * GC的入口就是在这个地方
+ * blobdb的gc，其实就是在做完compact后，如果当前的output的数据是kv分离的，
+ * 并且，该kv对指向的blob文件较旧，那就将blob数据读出来，写到新的blob文件中。
+ * TODO: 那么较旧的文件何时被删除呢
+ */
 void CompactionIterator::GarbageCollectBlobIfNeeded() {
   assert(ikey_.type == kTypeBlobIndex);
 
@@ -877,6 +888,7 @@ void CompactionIterator::GarbageCollectBlobIfNeeded() {
       return;
     }
 
+    /* 如果指向的blob文件不够旧，那么不做GC */
     if (blob_index.file_number() >=
         blob_garbage_collection_cutoff_file_number_) {
       return;
@@ -887,7 +899,8 @@ void CompactionIterator::GarbageCollectBlobIfNeeded() {
 
     uint64_t bytes_read = 0;
 
-    {
+    { 
+      /* 这一步主要用来将blob value读出来 */
       const Status s = version->GetBlob(ReadOptions(), user_key(), blob_index,
                                         &blob_value_, &bytes_read);
 
@@ -902,12 +915,14 @@ void CompactionIterator::GarbageCollectBlobIfNeeded() {
     ++iter_stats_.num_blobs_read;
     iter_stats_.total_blob_bytes_read += bytes_read;
 
+    /* 将value_从之前的记录blob数据的地址，改为记录blob数据本身 */
     value_ = blob_value_;
 
     if (ExtractLargeValueIfNeededImpl()) {
       return;
     }
 
+    /* 如果经过判断，发现此时该kv对不满足kv分离的条件，那么将value写入LSM中 */
     ikey_.type = kTypeValue;
     current_key_.UpdateInternalKey(ikey_.sequence, ikey_.type);
 
@@ -946,8 +961,17 @@ void CompactionIterator::GarbageCollectBlobIfNeeded() {
 void CompactionIterator::PrepareOutput() {
   if (valid_) {
     if (ikey_.type == kTypeValue) {
+      /*
+       * 此时已经做完了compact，我们得到了输出的ikey，所以，如果ikey的type是kTypeValue的话，
+       * 表示此时的kv对并没有kv分离，所以我们需要判断是否做kv分离, 如果需要的话，那么将value写
+       * 入blob文件，然后将value的值改成blob的地址
+       */
       ExtractLargeValueIfNeeded();
     } else if (ikey_.type == kTypeBlobIndex) {
+      /*
+       * 做完compact后，如果输出的ikey的类型是kTypeBlobIndex，意味着在compact的过程中，
+       * 很有可能我们丢弃了一些相同key，且类型为kTypeBlobIndex的数据，那么尝试做GC
+       */
       GarbageCollectBlobIfNeeded();
     }
 
