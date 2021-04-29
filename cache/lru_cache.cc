@@ -39,6 +39,7 @@ LRUHandle* LRUHandleTable::Lookup(const Slice& key, uint32_t hash) {
   return *FindPointer(key, hash);
 }
 
+/* 插入新值，返回旧值 */
 LRUHandle* LRUHandleTable::Insert(LRUHandle* h) {
   LRUHandle** ptr = FindPointer(h->key(), h->hash);
   LRUHandle* old = *ptr;
@@ -46,6 +47,7 @@ LRUHandle* LRUHandleTable::Insert(LRUHandle* h) {
   *ptr = h;
   if (old == nullptr) {
     ++elems_;
+    /* 如果hashtable的元素数目已经超过了bucket的个数，则进行扩容 */
     if (elems_ > length_) {
       // Since each cache entry is fairly large, we aim for a small
       // average linked list length (<= 1).
@@ -81,6 +83,7 @@ void LRUHandleTable::Resize() {
   LRUHandle** new_list = new LRUHandle*[new_length];
   memset(new_list, 0, sizeof(new_list[0]) * new_length);
   uint32_t count = 0;
+  /* 扩容以后，会重新计算散列值，然后填充到新的hashtable中 */
   for (uint32_t i = 0; i < length_; i++) {
     LRUHandle* h = list_[i];
     while (h != nullptr) {
@@ -208,11 +211,15 @@ void LRUCacheShard::MaintainPoolSize() {
   }
 }
 
+/*
+ * 将数据从LRU队列中驱逐，驱逐后对应的hashtable的数据也被删除了 
+ */
 void LRUCacheShard::EvictFromLRU(size_t charge,
                                  autovector<LRUHandle*>* deleted) {
   while (usage_ + charge > capacity_ && lru_.next != &lru_) {
     LRUHandle* old = lru_.next;
     assert(old->InCache());
+    /* 所以，LRU队列中缓冲的都是引用计数为1的Handle吗？ */
     assert(old->refs == 1);  // LRU list contains elements which may be evicted
     LRU_Remove(old);
     table_.Remove(old->key(), old->hash);
@@ -221,6 +228,11 @@ void LRUCacheShard::EvictFromLRU(size_t charge,
     usage_ -= old->charge;
     deleted->push_back(old);
   }
+  /*
+   * 1. usage_ + charge <= capacity_
+   * 2. lru_.next == lru_
+   * 3. usage_ + charge <= capacity_ && lru_.next == lru_
+   */
 }
 
 void LRUCacheShard::SetCapacity(size_t capacity) {
@@ -311,16 +323,41 @@ bool LRUCacheShard::Release(Cache::Handle* handle, bool force_erase) {
   return last_reference;
 }
 
+
+/*
+ * 向cache中插入数据：
+ * 1. 新建一个LRUHandle对象
+ * 2. 如果cache满了：
+ *    1. 如果此次Insert，调用者不需要引用插入的对象，那么不会插入cache中，但是会向用户返回ok
+ *    2. 否则，则返回错误。
+ *    请仔细思考一下，这个语义符合cache的使用场景。
+ * 3. 如果cache未满：
+ *    1. 插入hashtable
+ *    2. 如果插入的slot有数据，并且该数据不被外部引用，
+ *       那么将该数据从LRU链表中删除，并将其加入last_reference_list，等待做Free操作。
+ *    3. 此次Insert，如果调用者不需要引用插入的对象，那么将其加入LRU链表中
+ * 
+ * 4. 将last_reference_list中所有的Handle做Free
+ * 
+ * 在hashtable中不一定在LRU链表中，但是在LRU链表中，一定在hashtable中
+ */
+/* reading here. 2021-4-29-17:46 */
 Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
                              size_t charge,
                              void (*deleter)(const Slice& key, void* value),
                              Cache::Handle** handle, Cache::Priority priority) {
+  /*
+   * 这一步用于申请一个LRUHandle结构体与key的内存。
+   * 直观来看，申请的size应该为sizeof(LRUHandle)+key.size(), 
+   * 这里减去1的原因是因为LRUHandle.key_data的长度已经为1了
+   */
   // Allocate the memory here outside of the mutex
   // If the cache is full, we'll have to release it
   // It shouldn't happen very often though.
   LRUHandle* e = reinterpret_cast<LRUHandle*>(
       new char[sizeof(LRUHandle) - 1 + key.size()]);
   Status s;
+  /* 用于记录需要做free的Handle */
   autovector<LRUHandle*> last_reference_list;
 
   e->value = value;
@@ -343,6 +380,10 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
     // is freed or the lru list is empty
     EvictFromLRU(charge, &last_reference_list);
 
+    /*
+     * usage_ - lru_usage_ 表示没有被LRU链表缓冲的空间。
+     * WTF。这个if判断依赖于EvictFromLRU的执行逻辑，写的真够垃圾的。。。
+     */
     if (usage_ - lru_usage_ + charge > capacity_ &&
         (strict_capacity_limit_ || handle == nullptr)) {
       if (handle == nullptr) {
@@ -350,7 +391,7 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
         // into cache and get evicted immediately.
         last_reference_list.push_back(e);
       } else {
-        delete[] reinterpret_cast<char*>(e);
+        delete[] reinterpret_cast<char*>(e); /* TODO: 这种写法是什么意思 */
         *handle = nullptr;
         s = Status::Incomplete("Insert failed due to LRU cache being full.");
       }
@@ -370,6 +411,7 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
           last_reference_list.push_back(old);
         }
       }
+      /* handle为null，表示调用者没有引用该数据，那么将该数据插入LRU队列中 */
       if (handle == nullptr) {
         LRU_Insert(e);
       } else {

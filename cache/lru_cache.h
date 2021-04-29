@@ -19,6 +19,11 @@ namespace rocksdb {
 
 // LRU cache implementation
 
+/*
+ * LRU cache中存储的元素的内存都是在堆上的
+ * LRU cache的的元素会被cache引用、被外部引用
+ * LRU cache会将所有的元素放在hash-table中, 一些元素同时会被存放在LRU list中
+ */
 // An entry is a variable length heap-allocated structure.
 // Entries are referenced by cache and/or by any external entity.
 // The cache keeps all its entries in table. Some elements
@@ -43,31 +48,47 @@ namespace rocksdb {
 // matching
 // RUCache::Release (to move into state 2) or LRUCacheShard::Erase (for state 3)
 
+/*
+ * cache存储的最基本的元素 
+ */
 struct LRUHandle {
+  /* 实际的value */
   void* value;
+  /* 析构函数 */
   void (*deleter)(const Slice&, void* value);
+  /* 用于hashtable，拉链法的下一个元素 */
   LRUHandle* next_hash;
+  /* 用于LRU链表 */
   LRUHandle* next;
   LRUHandle* prev;
+  /* TODO: 占用的空间 */
   size_t charge;  // TODO(opt): Only allow uint32_t?
   size_t key_length;
+  /* 引用计数 */
   uint32_t refs;     // a number of refs to this entry
                      // cache itself is counted as 1
 
+  /*
+   * 记录了该Handle是否在cache中。
+   * 该Handle是否为高优先级Handle，由调用者插数据时指定。
+   * 是否位于高优先级队列中，如果该handle为高优先级Handle，则会将其插入LRU链表。
+   */
+  /* TOOD: 优先级需要留意下 */
   // Include the following flags:
   //   in_cache:    whether this entry is referenced by the hash table.
   //   is_high_pri: whether this entry is high priority entry.
   //   in_high_pro_pool: whether this entry is in high-pri pool.
-  char flags;
+  char flags; /* 记录了该Handle是否在cache中，该Handle是否为高优先级Handle,由调用者插数据时指定。以及是否位于高优先级队列中 */
 
   uint32_t hash;     // Hash of key(); used for fast sharding and comparisons
 
+  /* 真正的key数据： key_data[0] -- key_data(key_length) */
   char key_data[1];  // Beginning of key
 
   Slice key() const {
     // For cheaper lookups, we allow a temporary Handle object
     // to store a pointer to a key in "value".
-    if (next == this) {
+    if (next == this) { /* TODO: ??? */
       return *(reinterpret_cast<Slice*>(value));
     } else {
       return Slice(key_data, key_length);
@@ -111,6 +132,7 @@ struct LRUHandle {
   }
 };
 
+/* rocksdb自己实现的hashtable，采用拉链法处理hash碰撞 */
 // We provide our own simple hash table since it removes a whole bunch
 // of porting hacks and is also faster than some of the built-in hash
 // table implementations in some of the compiler/runtime combinations
@@ -148,17 +170,19 @@ class LRUHandleTable {
 
   // The table consists of an array of buckets where each bucket is
   // a linked list of cache entries that hash into the bucket.
-  uint32_t length_;
-  uint32_t elems_;
-  LRUHandle** list_;
+  uint32_t length_; /* bucket长度 */
+  uint32_t elems_; /* hashtable真正有多少元素 */
+  LRUHandle** list_; /* bucket */
 };
 
+/* 单个LRU cache实例 */
 // A single shard of sharded cache.
 class LRUCacheShard : public CacheShard {
  public:
   LRUCacheShard();
   virtual ~LRUCacheShard();
 
+  /* TODO: reading here */
   // Separate from constructor so caller can easily make an array of LRUCache
   // if current usage is more than new capacity, the function will attempt to
   // free the needed space
@@ -217,13 +241,13 @@ class LRUCacheShard : public CacheShard {
   void EvictFromLRU(size_t charge, autovector<LRUHandle*>* deleted);
 
   // Initialized before use.
-  size_t capacity_;
+  size_t capacity_; /* 总容量，但是没有计算LRU list的容量。TODO: 不知道这么设计的原因 */
 
   // Memory size for entries residing in the cache
-  size_t usage_;
+  size_t usage_; /* 所有驻留在cache中的元素所占的内存大小 */
 
   // Memory size for entries residing only in the LRU list
-  size_t lru_usage_;
+  size_t lru_usage_; /* LRUList管理的内存大小 */
 
   // Memory size for entries in high-pri pool.
   size_t high_pri_pool_usage_;
@@ -243,6 +267,10 @@ class LRUCacheShard : public CacheShard {
   // don't mind mutex_ invoking the non-const actions.
   mutable port::Mutex mutex_;
 
+  /*
+   * 整体来看，所谓的lru队列并不占用内存空间，它只是通过指针将hashtable的元素穿起来
+   * 位于LRU链表中的Handle，引用即使一定为1
+   */
   // Dummy head of LRU list.
   // lru.prev is newest entry, lru.next is oldest entry.
   // LRU contains items which can be evicted, ie reference only by cache
