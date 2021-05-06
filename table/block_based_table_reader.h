@@ -408,6 +408,7 @@ struct BlockBasedTable::Rep {
   Status status;
   unique_ptr<RandomAccessFileReader> file;
   char cache_key_prefix[kMaxCacheKeyPrefixSize];
+  /* cache_key_prefix_size：cache key prefix的长度，参见SetupCacheKeyPrefix   */
   size_t cache_key_prefix_size = 0;
   char persistent_cache_key_prefix[kMaxCacheKeyPrefixSize];
   size_t persistent_cache_key_prefix_size = 0;

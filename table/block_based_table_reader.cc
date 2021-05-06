@@ -510,6 +510,7 @@ SequenceNumber GetGlobalSequenceNumber(const TableProperties& table_properties,
 }
 }  // namespace
 
+/* blockcache的key: file_id + block在文件中的偏移 */
 Slice BlockBasedTable::GetCacheKey(const char* cache_key_prefix,
                                    size_t cache_key_prefix_size,
                                    const BlockHandle& handle, char* cache_key) {
@@ -990,6 +991,12 @@ Status BlockBasedTable::PutDataBlockToCache(
   // insert into uncompressed block cache
   assert((block->value->compression_type() == kNoCompression));
   if (block_cache != nullptr && block->value->cachable()) {
+    /*
+     * block->value是一个Block指针
+     * block->value->usable_size()其实是block->value->contents_.data.size()
+     * 从这里可以看出来，blockcache在向lrucache插入数据时，并没有将key的size
+     * 也计算在内。原因在于block_cache_key的size一般远小于block->value的size
+     */
     s = block_cache->Insert(
         block_cache_key, block->value, block->value->usable_size(),
         &DeleteCachedEntry<Block>, &(block->cache_handle), priority);

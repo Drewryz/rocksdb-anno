@@ -65,7 +65,9 @@ class BlockHandle {
   enum { kMaxEncodedLength = 10 + 10 };
 
  private:
+  /* 当前datablock在sst文件中的偏移 */
   uint64_t offset_;
+  /* 当前datablock的大小 */
   uint64_t size_;
 
   static const BlockHandle kNullBlockHandle;
