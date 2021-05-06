@@ -226,6 +226,7 @@ class LRUCacheShard : public CacheShard {
   void LRU_Remove(LRUHandle* e);
   void LRU_Insert(LRUHandle* e);
 
+  // 当高优先级链表引用的数据超过一个阈值时，将高优先级链表引用的数据，调整到低优先级链表上
   // Overflow the last entry in high-pri pool to low-pri pool until size of
   // high-pri pool is no larger than the size specify by high_pri_pool_pct.
   void MaintainPoolSize();
@@ -240,6 +241,11 @@ class LRUCacheShard : public CacheShard {
   // holding the mutex_
   void EvictFromLRU(size_t charge, autovector<LRUHandle*>* deleted);
 
+  /*
+   * LRUCahche管理的内存上限。
+   * 以下几个关于LRUCache的内存相关的数据指标，都仅仅只包括caller传入的charge，
+   * 不包括LRUCache自身数据结构占用的内存
+   */
   // Initialized before use.
   size_t capacity_; /* 总容量，但是没有计算LRU list的容量。TODO: 不知道这么设计的原因 */
 

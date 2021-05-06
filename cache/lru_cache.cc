@@ -212,7 +212,8 @@ void LRUCacheShard::MaintainPoolSize() {
 }
 
 /*
- * 将数据从LRU队列中驱逐，驱逐后对应的hashtable的数据也被删除了 
+ * 将数据从LRU队列中驱逐，驱逐后对应的hashtable的数据也被删除了。
+ * 注意从低优先级链表开始释放，如果内存持续不足，高优先级链表的数据也会被释放
  */
 void LRUCacheShard::EvictFromLRU(size_t charge,
                                  autovector<LRUHandle*>* deleted) {
@@ -391,7 +392,7 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
         // into cache and get evicted immediately.
         last_reference_list.push_back(e);
       } else {
-        delete[] reinterpret_cast<char*>(e); /* TODO: 这种写法是什么意思 */
+        delete[] reinterpret_cast<char*>(e);
         *handle = nullptr;
         s = Status::Incomplete("Insert failed due to LRU cache being full.");
       }
@@ -402,6 +403,14 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
       LRUHandle* old = table_.Insert(e);
       usage_ += e->charge;
       if (old != nullptr) {
+        /*
+         * hashtable中在相同的slot处存在数据，也就是说我们获得了相同key的旧值
+         * 关于该旧值占用的内存是否释放，需要考虑旧值的引用计数：
+         * 1. 如果引用计数为1，说明只被cache引用，那么free掉内存
+         * 2. 如果引用计数大于1，说明被外部引用，那么该handle占用的内存不做改变。
+         * 所以有个问题，不在cache中的Handle，需要调用者释放内存，那调用者如何释放呢？
+         * 调用Release函数，这个过程参考EntriesArePinned测试case
+         */
         old->SetInCache(false);
         if (Unref(old)) {
           usage_ -= old->charge;
@@ -430,6 +439,13 @@ Status LRUCacheShard::Insert(const Slice& key, uint32_t hash, void* value,
   return s;
 }
 
+/*
+ * Erase将key从cache中删除，但如果该元素仍然被外部引用，
+ * 那么其所占用的空间不会被释放，所以cache的usage_也不
+ * 变化。总结起来，就是只有当数据真正被Free后,usage_的
+ * 值才会变化。
+ * 关于Erase的语义，参见：ErasedHandleState测试case
+ */
 void LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
   LRUHandle* e;
   bool last_reference = false;
@@ -441,7 +457,8 @@ void LRUCacheShard::Erase(const Slice& key, uint32_t hash) {
       if (last_reference) {
         usage_ -= e->charge;
       }
-      if (last_reference && e->InCache()) {
+      /* 因为last_reference表示Unref之前的引用计数为1，因此一定在LRU链表中 */
+      if (last_reference && e->InCache()) { 
         LRU_Remove(e);
       }
       e->SetInCache(false);
