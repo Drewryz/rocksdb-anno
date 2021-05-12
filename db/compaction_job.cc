@@ -777,11 +777,6 @@ void CompactionJob::ProcessKeyValueCompaction(SubcompactionState* sub_compact) {
     }
   }
 #endif  // ROCKSDB_LITE
-  if (comp_event_listener == nullptr) {
-    printf("bnv1\n");
-  } else {
-    printf("bnv2\n");
-  }
 
   /*
    * TODO: CompactionIterator

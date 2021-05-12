@@ -369,6 +369,9 @@ Status CompactionPicker::GetCompactionInputsFromFileNumbers(
   return Status::OK();
 }
 
+/*
+ * 如果当前层的当前SST文件的key范围与输出层(下一层)的正在做compact的SST文件重合，那么不选这个文件 
+ */
 // Returns true if any one of the parent files are being compacted
 bool CompactionPicker::IsRangeInCompaction(VersionStorageInfo* vstorage,
                                            const InternalKey* smallest,
@@ -1232,6 +1235,10 @@ Compaction* LevelCompactionBuilder::PickCompaction() {
   }
   assert(start_level_ >= 0 && output_level_ >= 0);
 
+  /*
+   * 对于L0层来说，此时只获取了一个文件，SetupOtherL0FilesIfNeeded会去做扩展
+   * reading here. 2021-5-12-21:26
+   */
   // If it is a L0 -> base level compaction, we need to set up other L0
   // files if needed.
   if (!SetupOtherL0FilesIfNeeded()) {
@@ -1355,6 +1362,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
       nextIndex = i;
     }
 
+    /* 如果当前层的当前SST文件的key范围与输出层(下一层)的正在做compact的SST文件重合，那么不选这个文件 */
     // Do not pick this file if its parents at level+1 are being compacted.
     // Maybe we can avoid redoing this work in SetupOtherInputs
     parent_index_ = -1;

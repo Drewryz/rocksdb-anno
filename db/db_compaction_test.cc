@@ -13,6 +13,7 @@
 #include "rocksdb/experimental.h"
 #include "rocksdb/utilities/convenience.h"
 #include "util/sync_point.h"
+#include <iostream>
 namespace rocksdb {
 
 // SYNC_POINT is not supported in released Windows mode.
@@ -2581,6 +2582,7 @@ TEST_P(DBCompactionTestWithParam, IntraL0Compaction) {
   options.max_subcompactions = max_subcompactions_;
   DestroyAndReopen(options);
 
+  /* 1MB */
   const size_t kValueSize = 1 << 20;
   Random rnd(301);
   std::string value(RandomString(&rnd, kValueSize));
@@ -2610,6 +2612,7 @@ TEST_P(DBCompactionTestWithParam, IntraL0Compaction) {
     }
     ASSERT_OK(Flush());
   }
+  std::cout << "Flush() ended" << std::endl;
   dbfull()->TEST_WaitForCompact();
   rocksdb::SyncPoint::GetInstance()->DisableProcessing();
 
@@ -2617,6 +2620,7 @@ TEST_P(DBCompactionTestWithParam, IntraL0Compaction) {
   dbfull()->TEST_GetFilesMetaData(dbfull()->DefaultColumnFamily(),
                                   &level_to_files);
   ASSERT_GE(level_to_files.size(), 2);  // at least L0 and L1
+  /* TODO: 这里为什么L0层有2个SST文件，在L0做完一次compaction，不应该是compact了所有的文件了吗 */
   // L0 has the 2MB file (not compacted) and 4MB file (output of L0->L0)
   ASSERT_EQ(2, level_to_files[0].size());
   ASSERT_GT(level_to_files[1].size(), 0);
