@@ -33,6 +33,10 @@
 
 namespace rocksdb {
 
+/*
+ * L0层的SST之间排序的时候调用的是这个函数。通过该函数可以看到：
+ * sequence number 越大的排序越靠前 
+ */
 bool NewestFirstBySeqNo(FileMetaData* a, FileMetaData* b) {
   if (a->largest_seqno != b->largest_seqno) {
     return a->largest_seqno > b->largest_seqno;

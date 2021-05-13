@@ -25,6 +25,7 @@
 #include "util/random.h"
 #include "util/string_util.h"
 #include "util/sync_point.h"
+#include <iostream>
 
 namespace rocksdb {
 
@@ -37,6 +38,9 @@ uint64_t TotalCompensatedFileSize(const std::vector<FileMetaData*>& files) {
   return sum;
 }
 
+/*
+ * L0->L0层的compaction，在挑选SST文件时，尽量挑选小的SST 
+ */
 bool FindIntraL0Compaction(const std::vector<FileMetaData*>& level_files,
                            size_t min_files_to_compact,
                            uint64_t max_compact_bytes_per_del_file,
@@ -1097,6 +1101,10 @@ void LevelCompactionBuilder::SetupInitialFiles() {
   // Find the compactions by size on all levels.
   bool skipped_l0_to_base = false;
   for (int i = 0; i < compaction_picker_->NumberLevels() - 1; i++) {
+    /*
+     * 挑选当前score最高的level做为start_level_，并做compact
+     * 注意：level compact，是每一层对应一个score 
+     */
     start_level_score_ = vstorage_->CompactionScore(i);
     start_level_ = vstorage_->CompactionScoreLevel(i);
     assert(i == 0 || start_level_score_ <= vstorage_->CompactionScore(i - 1));
@@ -1127,6 +1135,13 @@ void LevelCompactionBuilder::SetupInitialFiles() {
         // didn't find the compaction, clear the inputs
         start_level_inputs_.clear();
         if (start_level_ == 0) {
+          /*
+           * 当前的input level为L0, 但是执行失败了，此时有两种可能：
+           * 1. 当前有一个L0->L1的compaction任务操作正在进行
+           * 2. L1层的一些SST文件正在进行compaction，而这些文件刚好和L0的这些文件overlap
+           * 
+           * 对于以上两种情况，为了减少L0的SST文件过多造成的write stall, 此时会执行L0->L0的compaction
+           */
           skipped_l0_to_base = true;
           // L0->base_level may be blocked due to ongoing L0->base_level
           // compactions. It may also be blocked by an ongoing compaction from
@@ -1236,8 +1251,7 @@ Compaction* LevelCompactionBuilder::PickCompaction() {
   assert(start_level_ >= 0 && output_level_ >= 0);
 
   /*
-   * 对于L0层来说，此时只获取了一个文件，SetupOtherL0FilesIfNeeded会去做扩展
-   * reading here. 2021-5-12-21:26
+   * 如果是L0层的话，SetupOtherL0FilesIfNeeded会扩展input集合
    */
   // If it is a L0 -> base level compaction, we need to set up other L0
   // files if needed.
@@ -1321,6 +1335,10 @@ uint32_t LevelCompactionBuilder::GetPathId(
   return p;
 }
 
+/*
+ * 我们已经确定了应该挑选哪一层做compact，由于每一层有很多SST文件，那么应该挑选哪些文件做compact呢 
+ * 总的来说选择当前层size最大的SST文件，加入到input集合中。注意这个函数只要选择了一个合适的SST文件就会返回。
+ */
 bool LevelCompactionBuilder::PickFileToCompact() {
   // level 0 files are overlapping. So we cannot pick more
   // than one concurrent compactions at this level. This
@@ -1338,6 +1356,7 @@ bool LevelCompactionBuilder::PickFileToCompact() {
 
   // Pick the largest file in this level that is not already
   // being compacted
+  /* file_size是start_level_的所有SST文件列表，并且按照SST size从大到小排序 */
   const std::vector<int>& file_size =
       vstorage_->FilesByCompactionPri(start_level_);
   const std::vector<FileMetaData*>& level_files =
@@ -1387,6 +1406,7 @@ bool LevelCompactionBuilder::PickIntraL0Compaction() {
   start_level_inputs_.clear();
   const std::vector<FileMetaData*>& level_files =
       vstorage_->LevelFiles(0 /* level */);
+
   if (level_files.size() <
           static_cast<size_t>(
               mutable_cf_options_.level0_file_num_compaction_trigger + 2) ||

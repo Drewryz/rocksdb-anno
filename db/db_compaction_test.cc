@@ -14,6 +14,7 @@
 #include "rocksdb/utilities/convenience.h"
 #include "util/sync_point.h"
 #include <iostream>
+
 namespace rocksdb {
 
 // SYNC_POINT is not supported in released Windows mode.
@@ -2592,6 +2593,7 @@ TEST_P(DBCompactionTestWithParam, IntraL0Compaction) {
         "CompactionJob::Run():Start"}});
   rocksdb::SyncPoint::GetInstance()->EnableProcessing();
 
+  /* 关于分数的计算，参见FindIntraL0Compaction */
   // index:   0   1   2   3   4   5   6   7   8   9
   // size:  1MB 1MB 1MB 1MB 1MB 2MB 1MB 1MB 1MB 1MB
   // score:                     1.5 1.3 1.5 2.0 inf

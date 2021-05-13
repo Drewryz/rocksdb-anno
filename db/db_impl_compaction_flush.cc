@@ -1075,7 +1075,6 @@ void DBImpl::MaybeScheduleFlushOrCompaction() {
     ca->m = nullptr;
     bg_compaction_scheduled_++;
     unscheduled_compactions_--;
-    std::cout << "mark1" << std::endl;
     env_->Schedule(&DBImpl::BGWorkCompaction, ca, Env::Priority::LOW, this,
                    &DBImpl::UnscheduleCallback);
   }

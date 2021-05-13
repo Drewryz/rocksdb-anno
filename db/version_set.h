@@ -156,6 +156,11 @@ class VersionStorageInfo {
   // Return level number that has idx'th highest score
   int CompactionScoreLevel(int idx) const { return compaction_level_[idx]; }
 
+  /*
+   * idx是level number，返回该层的compact score。
+   * 对于level0，触发条件是sst文件个数，通过参数level0_file_num_compaction_trigger控制，
+   * score通过sst文件数目与level0_file_num_compaction_trigger的比值得到。 
+   */
   // Return idx'th highest score
   double CompactionScore(int idx) const { return compaction_score_[idx]; }
 
@@ -376,6 +381,10 @@ class VersionStorageInfo {
 
   CompactionStyle compaction_style_;
 
+  /*
+   * files_记录了所有level的SST文件，
+   * 并且对于每一层来说，所有的SST文件按照key的顺序排序 
+   */
   // List of files per level, files in each level are arranged
   // in increasing order of keys
   std::vector<FileMetaData*>* files_;
@@ -384,6 +393,10 @@ class VersionStorageInfo {
   // be empty. -1 if it is not level-compaction so it's not applicable.
   int base_level_;
 
+  /*
+   * 存储的最基本的元素是file在files_的索引 
+   * 并且这些索引是按照SST size从大到小排序
+   */
   // A list for the same set of files that are stored in files_,
   // but files in each level are now sorted based on file
   // size. The file with the largest size is at the front.
@@ -409,6 +422,11 @@ class VersionStorageInfo {
   // ComputeCompactionScore()
   autovector<std::pair<int, FileMetaData*>> files_marked_for_compaction_;
 
+  /*
+   * compaction_score_和compaction_level_，从*大到小*记录了每个Level的compactscore，以及levelnum
+   * eg:
+   * compaction_score_[0]和compaction_level_[0]: 表示当前得分最大的level的分数和level number 
+   */
   // Level that should be compacted next and its compaction score.
   // Score < 1 means compaction is not strictly needed.  These fields
   // are initialized by Finalize().

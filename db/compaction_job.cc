@@ -61,6 +61,7 @@
 #include "util/string_util.h"
 #include "util/sync_point.h"
 #include <stdio.h>
+#include <iostream>
 
 namespace rocksdb {
 

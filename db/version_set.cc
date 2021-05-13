@@ -1734,6 +1734,12 @@ bool VersionStorageInfo::OverlapInLevel(int level,
                                largest_user_key);
 }
 
+/*
+ * 这个函数用于在一个选中的SST基础上，根据该文件的范围找到同一层其他与该文件重合的SST文件，
+ * 并将其放入inputs集合中。
+ * 假设首先被选中的SST的key范围为[a, b]，那么除了file_max < a 或者file_min > b以外，
+ * 都表示有重合，需要加入inputs集合中。 
+ */
 // Store in "*inputs" all files in "level" that overlap [begin,end]
 // If hint_index is specified, then it points to a file in the
 // overlapping range.
