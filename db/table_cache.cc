@@ -94,6 +94,7 @@ Status TableCache::GetTableReader(
   std::string fname =
       TableFileName(ioptions_.db_paths, fd.GetNumber(), fd.GetPathId());
   unique_ptr<RandomAccessFile> file;
+  /* 这一步调用os的open，打开一个文件 */
   Status s = ioptions_.env->NewRandomAccessFile(fname, &file, env_options);
 
   RecordTick(ioptions_.statistics, NO_FILE_OPENS);
@@ -105,6 +106,7 @@ Status TableCache::GetTableReader(
       file->Hint(RandomAccessFile::RANDOM);
     }
     StopWatch sw(ioptions_.env, ioptions_.statistics, TABLE_OPEN_IO_MICROS);
+    /* 这一步没有啥开销，只是用来构造一个类 */
     std::unique_ptr<RandomAccessFileReader> file_reader(
         new RandomAccessFileReader(std::move(file), fname, ioptions_.env,
                                    ioptions_.statistics, record_read_stats,
@@ -138,6 +140,9 @@ Status TableCache::FindTable(const EnvOptions& env_options,
   Status s;
   uint64_t number = fd.GetNumber();
   Slice key = GetSliceForFileNumber(&number);
+  /*
+   * TableCache存储的是TableReader对象
+   */
   *handle = cache_->Lookup(key);
   TEST_SYNC_POINT_CALLBACK("TableCache::FindTable:0",
                            const_cast<bool*>(&no_io));

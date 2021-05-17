@@ -26,6 +26,11 @@ const uint64_t kFileNumberMask = 0x3FFFFFFFFFFFFFFF;
 
 extern uint64_t PackFileNumberAndPathId(uint64_t number, uint64_t path_id);
 
+/*
+ * 该结构：
+ * 1. 要么包含一个TableReader对象，此时文件已经被打开了
+ * 2. 或者不含SST的number，用于创建一个TableReader对象
+ */
 // A copyable structure contains information needed to read data from an SST
 // file. It can contains a pointer to a table reader opened for the file, or
 // file number and size, which can be used to create a new table reader for it.
