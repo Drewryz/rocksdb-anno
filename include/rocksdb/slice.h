@@ -139,6 +139,7 @@ class PinnableSlice : public Slice, public Cleanable {
     assert(pinned_);
   }
 
+  /* 浅拷贝s */
   inline void PinSlice(const Slice& s, Cleanable* cleanable) {
     assert(!pinned_);
     pinned_ = true;
@@ -148,6 +149,7 @@ class PinnableSlice : public Slice, public Cleanable {
     assert(pinned_);
   }
 
+  /* 深拷贝s */
   inline void PinSelf(const Slice& slice) {
     assert(!pinned_);
     buf_->assign(slice.data(), slice.size());

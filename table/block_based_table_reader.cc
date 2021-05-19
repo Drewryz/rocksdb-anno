@@ -1632,6 +1632,7 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
   // First check the full filter
   // If full filter not useful, Then go into each block
   if (!FullFilterKeyMayMatch(read_options, filter, key, no_io)) {
+    /* bloom过滤器确认key不存在 */
     RecordTick(rep_->ioptions.statistics, BLOOM_FILTER_USEFUL);
   } else {
     BlockIter iiter_on_stack;
@@ -1681,6 +1682,11 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
             s = Status::Corruption(Slice());
           }
 
+          /*
+           * 猜测应该是这个流程：
+           * NewDataBlockIterator会将数据读入blockcache中，并且biter注册了clean函数，如果没有引用那么就会调用Cache的Release函数
+           * 而PinSlice函数延缓了析构。
+           */
           if (!get_context->SaveValue(parsed_key, biter.value(), &biter)) {
             done = true;
             break;

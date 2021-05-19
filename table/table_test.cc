@@ -2261,9 +2261,11 @@ TEST_F(BlockBasedTableTest, NoObjectInCacheAfterTableClose) {
             auto usage = table_options.block_cache->GetUsage();
             auto pinned_usage = table_options.block_cache->GetPinnedUsage();
             // The only usage must be for marked data blocks
+            std::cout << "MockCache::marked_size_: " << MockCache::marked_size_ << std::endl;
             ASSERT_EQ(usage, MockCache::marked_size_);
             // There must be some pinned data since PinnableSlice has not
             // released them yet
+            std::cout << "pinned_usage: " << pinned_usage << std::endl;
             ASSERT_GT(pinned_usage, 0);
             // Release pinnable slice reousrces
             value.Reset();
