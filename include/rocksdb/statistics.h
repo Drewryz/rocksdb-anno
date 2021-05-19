@@ -17,6 +17,9 @@
 
 namespace rocksdb {
 
+/*
+ * statistic的key
+ */
 /**
  * Keep adding ticker's here.
  *  1. Any ticker should be added before TICKER_ENUM_MAX.

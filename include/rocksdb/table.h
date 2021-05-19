@@ -57,6 +57,9 @@ struct BlockBasedTableOptions {
   // `FlushBlockBySizePolicy`).
   std::shared_ptr<FlushBlockPolicyFactory> flush_block_policy_factory;
 
+  /*
+   * 该参数的具体含义参见BlockBasedTable::Open 
+   */
   // TODO(kailiu) Temporarily disable this feature by making the default value
   // to be false.
   //

@@ -709,7 +709,12 @@ Status BlockBasedTable::Open(const ImmutableCFOptions& ioptions,
                                                 rep->ioptions.info_log);
   }
 
-    // pre-fetching of blocks is turned on
+  /*
+   * cache_index_and_filter_blocks: 
+   * 为true, index/filter的block将会通过blockcache访问，如果是l0层，index和filter会预取blockcache中。
+   * 为false，不会通过blockcache管理index/filter block，而是通过BlockBasedTable的成员变量，此时会预取这些block到成员变量中
+   */
+  // pre-fetching of blocks is turned on
   // Will use block cache for index/filter blocks access
   // Always prefetch index and filter for level 0
   if (table_options.cache_index_and_filter_blocks) {

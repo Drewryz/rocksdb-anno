@@ -51,6 +51,7 @@
 #include "util/testharness.h"
 #include "util/testutil.h"
 #include "utilities/merge_operators.h"
+#include <iostream>
 
 namespace rocksdb {
 
@@ -1752,6 +1753,8 @@ class BlockCachePropertiesSnapshot {
     block_cache_bytes_read = statistics->getTickerCount(BLOCK_CACHE_BYTES_READ);
     block_cache_bytes_write =
         statistics->getTickerCount(BLOCK_CACHE_BYTES_WRITE);
+    block_cache_index_bytes_evict = statistics->getTickerCount(BLOCK_CACHE_INDEX_BYTES_EVICT);
+    block_cache_filter_bytes_evict = statistics->getTickerCount(BLOCK_CACHE_FILTER_BYTES_EVICT);
   }
 
   void AssertIndexBlockStat(int64_t expected_index_block_cache_miss,
@@ -1786,6 +1789,10 @@ class BlockCachePropertiesSnapshot {
 
   int64_t GetCacheBytesWrite() { return block_cache_bytes_write; }
 
+  int64_t GetCacheBytesIndexAndFilterEvict() {
+    return block_cache_index_bytes_evict + block_cache_filter_bytes_evict;
+  }
+
  private:
   int64_t block_cache_miss = 0;
   int64_t block_cache_hit = 0;
@@ -1797,6 +1804,8 @@ class BlockCachePropertiesSnapshot {
   int64_t filter_block_cache_hit = 0;
   int64_t block_cache_bytes_read = 0;
   int64_t block_cache_bytes_write = 0;
+  int64_t block_cache_index_bytes_evict = 0;
+  int64_t block_cache_filter_bytes_evict = 0;
 };
 
 // Make sure, by default, index/filter blocks were pre-loaded (meaning we won't
@@ -1848,11 +1857,13 @@ TEST_F(BlockBasedTableTest, FilterBlockInBlockCache) {
   // -- Table construction
   Options options;
   options.create_if_missing = true;
+  /* TODO */
   options.statistics = CreateDBStatistics();
 
   // Enable the cache for index/filter blocks
   BlockBasedTableOptions table_options;
   table_options.block_cache = NewLRUCache(1024, 4);
+  /* 如果该选项打开，一个table reader对象初始化时会将index/filter blocks初始化到block cache中 */
   table_options.cache_index_and_filter_blocks = true;
   options.table_factory.reset(new BlockBasedTableFactory(table_options));
   std::vector<std::string> keys;
@@ -1861,6 +1872,7 @@ TEST_F(BlockBasedTableTest, FilterBlockInBlockCache) {
   TableConstructor c(BytewiseComparator(), true /* convert_to_internal_key_ */);
   c.Add("key", "value");
   const ImmutableCFOptions ioptions(options);
+  /* 这一步应该会将数据写入block based table中 */
   c.Finish(options, ioptions, table_options,
            GetPlainInternalComparator(options.comparator), &keys, &kvmap);
   // preloading filter/index blocks is prohibited.
@@ -1876,10 +1888,18 @@ TEST_F(BlockBasedTableTest, FilterBlockInBlockCache) {
   // At first, no block will be accessed.
   {
     BlockCachePropertiesSnapshot props(options.statistics.get());
+    /*
+     * 这里为什么index block miss=1，参见BlockBasedTable::Open与NewIndexIterator函数 
+     */
     // index will be added to block cache.
     props.AssertEqual(1,  // index block miss
                       0, 0, 0);
     ASSERT_EQ(props.GetCacheBytesRead(), 0);
+    std::cout << "props.GetCacheBytesWrite(): " << props.GetCacheBytesWrite() << std::endl;
+    std::cout << "table_options.block_cache->GetUsage(): " << table_options.block_cache->GetUsage() << std::endl;
+        // block_cache_index_bytes_evict = statistics->getTickerCount(BLOCK_CACHE_INDEX_BYTES_EVICT);
+    // block_cache_filter_bytes_evict = statistics->getTickerCount(BLOCK_CACHE_FILTER_BYTES_EVICT);
+    std::cout << "GetCacheBytesIndexAndFilterEvict: " << props.GetCacheBytesIndexAndFilterEvict() << std::endl;
     ASSERT_EQ(props.GetCacheBytesWrite(),
               table_options.block_cache->GetUsage());
     last_cache_bytes_read = props.GetCacheBytesRead();
