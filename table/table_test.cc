@@ -2168,6 +2168,7 @@ class MockCache : public LRUCache {
   virtual void TEST_mark_as_data_block(const Slice& key,
                                        size_t charge) override {
     marked_data_in_cache_[key.ToString()] = charge;
+    std::cout << "key: " << key.ToString() << " charge: " << charge << std::endl;
     marked_size_ += charge;
   }
   using DeleterFunc = void (*)(const Slice& key, void* value);
@@ -2175,10 +2176,12 @@ class MockCache : public LRUCache {
   static std::map<std::string, size_t> marked_data_in_cache_;
   static size_t marked_size_;
   static void MockDeleter(const Slice& key, void* value) {
+    std::cout << "mark11" << std::endl;
     // If the item was marked for being data block, decrease its usage from  the
     // total data block usage of the cache
     if (marked_data_in_cache_.find(key.ToString()) !=
         marked_data_in_cache_.end()) {
+      std::cout << "mark22 " << marked_data_in_cache_[key.ToString()] << std::endl;
       marked_size_ -= marked_data_in_cache_[key.ToString()];
     }
     // Then call the origianl deleter
@@ -2213,6 +2216,7 @@ TEST_F(BlockBasedTableTest, NoObjectInCacheAfterTableClose) {
             if (pin_l0 && !index_and_filter_in_cache) {
               continue;
             }
+            std::cout << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!" << std::endl;
             // Create a table
             Options opt;
             unique_ptr<InternalKeyComparator> ikc;
@@ -2261,7 +2265,8 @@ TEST_F(BlockBasedTableTest, NoObjectInCacheAfterTableClose) {
             auto usage = table_options.block_cache->GetUsage();
             auto pinned_usage = table_options.block_cache->GetPinnedUsage();
             // The only usage must be for marked data blocks
-            std::cout << "MockCache::marked_size_: " << MockCache::marked_size_ << std::endl;
+            std::cout << "m1 MockCache::marked_size_: " << MockCache::marked_size_ << std::endl;
+            std::cout << "m2 table_options.block_cache->GetUsage(): " << table_options.block_cache->GetUsage() << std::endl;
             ASSERT_EQ(usage, MockCache::marked_size_);
             // There must be some pinned data since PinnableSlice has not
             // released them yet

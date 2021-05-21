@@ -145,6 +145,7 @@ class PinnableSlice : public Slice, public Cleanable {
     pinned_ = true;
     data_ = s.data();
     size_ = s.size();
+    /* 将cleanable的清理逻辑，委托给本对象完成 */
     cleanable->DelegateCleanupsTo(this);
     assert(pinned_);
   }
