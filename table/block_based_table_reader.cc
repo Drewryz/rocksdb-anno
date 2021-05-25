@@ -523,6 +523,18 @@ Slice BlockBasedTable::GetCacheKey(const char* cache_key_prefix,
   return Slice(cache_key, static_cast<size_t>(end - cache_key));
 }
 
+/*
+ * 该函数主要用于初始化BlockBasedTable::rep, 并预取table的index block和filter block。
+ * table_reader传出参数，成功Open则赋值table_reader 
+ * 1. 读SST文件的Footer，用于判断打开的文件是否是合法的SST文件
+ * 2. 读meta index block
+ * 3. 读filter block
+ * 4. 读表properties
+ * 5. 如果开启了cache_index_and_filter_blocks，并且设置了预取index和filter 又或者该table属于L0层，
+ *    则将index block和filter block预取到block cache中
+ * 6. 如果未开启cache_index_and_filter_blocks，不会通过blockcache管理index/filter block，而是通过BlockBasedTable的成员变量，此时会预取这些block到成员变量中
+ *    
+ */
 Status BlockBasedTable::Open(const ImmutableCFOptions& ioptions,
                              const EnvOptions& env_options,
                              const BlockBasedTableOptions& table_options,
@@ -2100,6 +2112,9 @@ Status BlockBasedTable::DumpTable(WritableFile* out_file) {
 }
 
 void BlockBasedTable::Close() {
+  /*
+   * 如果filter block和index block被pin到了block cache中，则释放掉 
+   */
   rep_->filter_entry.Release(rep_->table_options.block_cache.get());
   rep_->index_entry.Release(rep_->table_options.block_cache.get());
   rep_->range_del_entry.Release(rep_->table_options.block_cache.get());

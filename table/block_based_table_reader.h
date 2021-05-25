@@ -406,10 +406,18 @@ struct BlockBasedTable::Rep {
   const FilterPolicy* const filter_policy;
   const InternalKeyComparator& internal_comparator;
   Status status;
+  /*
+   * RandomAccessFileReader其实就是对磁盘上文件的封装，用于读取文件的内容
+   */
   unique_ptr<RandomAccessFileReader> file;
+  /*
+   * 一个BlockBasedTable的数据在blockcache中，有相同的key前缀
+   * 这个前缀在linux系统下其实就是table文件的fd
+   */
   char cache_key_prefix[kMaxCacheKeyPrefixSize];
   /* cache_key_prefix_size：cache key prefix的长度，参见SetupCacheKeyPrefix   */
   size_t cache_key_prefix_size = 0;
+  /* ??? */
   char persistent_cache_key_prefix[kMaxCacheKeyPrefixSize];
   size_t persistent_cache_key_prefix_size = 0;
   char compressed_cache_key_prefix[kMaxCacheKeyPrefixSize];
@@ -420,6 +428,10 @@ struct BlockBasedTable::Rep {
 
   // Footer contains the fixed table information
   Footer footer;
+  /*
+   * index_reader和filter分别用于读取一个Table的index信息和filter信息
+   * 如果blockcache未开启，那么由BlockBasedTableReader持有index_reader和filter
+   */
   // index_reader and filter will be populated and used only when
   // options.block_cache is nullptr; otherwise we will get the index block via
   // the block cache.
@@ -433,8 +445,15 @@ struct BlockBasedTable::Rep {
     kPartitionedFilter,
   };
   FilterType filter_type;
+  /*
+   * filter block在SST文件中的位置
+   * TODO: 为什么filter block需要单独拎出来？index block呢
+   */
   BlockHandle filter_handle;
 
+  /*
+   * 用于记录表的一些属性信息 
+   */
   std::shared_ptr<const TableProperties> table_properties;
   // Block containing the data for the compression dictionary. We take ownership
   // for the entire block struct, even though we only use its Slice member. This
@@ -451,6 +470,10 @@ struct BlockBasedTable::Rep {
   // block to extract prefix without knowing if a key is internal or not.
   unique_ptr<SliceTransform> internal_prefix_transform;
 
+  /*
+   * 当pin_l0_filter_and_index_blocks_in_cache开启时，Table对象记录filter和index在
+   * block中的handle以达到pin的效果
+   */
   // only used in level 0 files:
   // when pin_l0_filter_and_index_blocks_in_cache is true, we do use the
   // LRU cache, but we always keep the filter & idndex block's handle checked
