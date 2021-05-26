@@ -96,6 +96,7 @@ class TtlTest : public testing::Test {
     int digits = 1;
     for (int64_t dummy = num_entries; dummy /= 10; ++digits) {
     }
+    std::cout << "digits: " << digits << std::endl;
     int digits_in_i = 1;
     for (int64_t i = 0; i < num_entries; i++) {
       std::string key = "key";
@@ -107,8 +108,12 @@ class TtlTest : public testing::Test {
         key.append("0");
         value.append("0");
       }
+      std::cout << key << std::endl;
+      std::cout << value << std::endl;
       AppendNumberTo(&key, i);
       AppendNumberTo(&value, i);
+      std::cout << key << std::endl;
+      std::cout << value << std::endl;
       kvmap_[key] = value;
     }
     ASSERT_EQ(static_cast<int64_t>(kvmap_.size()),

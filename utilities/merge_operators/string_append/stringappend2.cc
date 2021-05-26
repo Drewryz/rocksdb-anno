@@ -12,6 +12,7 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/merge_operator.h"
 #include "utilities/merge_operators.h"
+#include <iostream>
 
 namespace rocksdb {
 
@@ -24,6 +25,7 @@ StringAppendTESTOperator::StringAppendTESTOperator(char delim_char)
 bool StringAppendTESTOperator::FullMergeV2(
     const MergeOperationInput& merge_in,
     MergeOperationOutput* merge_out) const {
+  std::cout << "In StringAppendTESTOperator::FullMergeV2" << std::endl;
   // Clear the *new_value for writing.
   merge_out->new_value.clear();
 

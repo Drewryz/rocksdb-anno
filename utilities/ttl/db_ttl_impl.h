@@ -16,6 +16,7 @@
 #include "rocksdb/utilities/utility_db.h"
 #include "rocksdb/utilities/db_ttl.h"
 #include "db/db_impl.h"
+#include <iostream>
 
 #ifdef _WIN32
 // Windows API macro interference
@@ -229,8 +230,12 @@ class TtlMergeOperator : public MergeOperator {
     assert(env);
   }
 
+  /*
+   * 该函数的逻辑只是将时间戳去除，然后传给用户的merge operator 
+   */
   virtual bool FullMergeV2(const MergeOperationInput& merge_in,
                            MergeOperationOutput* merge_out) const override {
+    std::cout << "In TtlMergeOperator::FullMergeV2" << std::endl;
     const uint32_t ts_len = DBWithTTLImpl::kTSLength;
     if (merge_in.existing_value && merge_in.existing_value->size() < ts_len) {
       ROCKS_LOG_ERROR(merge_in.logger,

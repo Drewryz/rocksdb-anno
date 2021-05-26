@@ -74,6 +74,10 @@ class MergeContext {
     return (*operand_list_)[index];
   }
 
+  /*
+   * 返回merge链:
+   * merge1 -> merge2 -> merge3 ... 
+   */
   // Return all the operands.
   const std::vector<Slice>& GetOperands() {
     if (!operand_list_) {

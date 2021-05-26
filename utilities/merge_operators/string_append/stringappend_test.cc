@@ -223,6 +223,7 @@ TEST_F(StringAppendOperatorTest, IteratorTest) {
 }
 
 TEST_F(StringAppendOperatorTest, SimpleTest) {
+  std::cout << "Mark1mmm" << std::endl;
   auto db = OpenDb(',');
   StringLists slists(db);
 
@@ -581,11 +582,11 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   // Run with regular database
   int result;
-  {
-    fprintf(stderr, "Running tests with regular db and operator.\n");
-    StringAppendOperatorTest::SetOpenDbFunction(&OpenNormalDb);
-    result = RUN_ALL_TESTS();
-  }
+  // {
+  //   fprintf(stderr, "Running tests with regular db and operator.\n");
+  //   StringAppendOperatorTest::SetOpenDbFunction(&OpenNormalDb);
+  //   result = RUN_ALL_TESTS();
+  // }
 
 #ifndef ROCKSDB_LITE  // TtlDb is not supported in Lite
   // Run with TTL
