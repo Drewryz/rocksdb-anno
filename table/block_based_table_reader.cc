@@ -510,7 +510,13 @@ SequenceNumber GetGlobalSequenceNumber(const TableProperties& table_properties,
 }
 }  // namespace
 
-/* blockcache的key: file_id + block在文件中的偏移 */
+/*
+ * blockcache的key: file_id + block在文件中的偏移
+ * cache_key_prefix: 入参，记录在blockcache的前缀，一般为file_id
+ * cache_key_prefix_size: 入参，前缀长度
+ * handle: 入参，记录了block在文件中的偏移
+ * cache_key: 出参，记录了记录的blockcache key的buffer，返回的Slice实际的数据指向该buffer 
+ */
 Slice BlockBasedTable::GetCacheKey(const char* cache_key_prefix,
                                    size_t cache_key_prefix_size,
                                    const BlockHandle& handle, char* cache_key) {
@@ -861,6 +867,12 @@ Status BlockBasedTable::ReadMetaBlock(Rep* rep,
   return Status::OK();
 }
 
+/*
+ * 从blockcache中Lookup数据
+ * block_cache_key: 入参, 记录了数据在blockcache的key
+ * block: 出参, 记录了要检索的key在blockcache中的value
+ * 成功Loopup到数据，则返回Status::OK
+ */
 Status BlockBasedTable::GetDataBlockFromCache(
     const Slice& block_cache_key, const Slice& compressed_block_cache_key,
     Cache* block_cache, Cache* block_cache_compressed,
@@ -1347,6 +1359,11 @@ InternalIterator* BlockBasedTable::NewDataBlockIterator(
   return iter;
 }
 
+/*
+ * 该函数从blockcache读数据，如果读不到则从SST文件中读取，并将其加入到blockcache中
+ * handle记录了要读取的block在SST文件中的偏移
+ * block_entry: 出参，记录了检索到的value
+ */
 Status BlockBasedTable::MaybeLoadDataBlockToCache(
     Rep* rep, const ReadOptions& ro, const BlockHandle& handle,
     Slice compression_dict, CachableEntry<Block>* block_entry, bool is_index) {
@@ -1382,6 +1399,9 @@ Status BlockBasedTable::MaybeLoadDataBlockToCache(
         rep->table_options.read_amp_bytes_per_bit, is_index);
 
     if (block_entry->value == nullptr && !no_io && ro.fill_cache) {
+      /*
+       * 检索不到则从文件中读取 
+       */
       std::unique_ptr<Block> raw_block;
       {
         StopWatch sw(rep->ioptions.env, statistics, READ_BLOCK_GET_MICROS);
@@ -1393,6 +1413,7 @@ Status BlockBasedTable::MaybeLoadDataBlockToCache(
       }
 
       if (s.ok()) {
+        /* 成功读取到则插入blockcache中 */
         s = PutDataBlockToCache(
             key, ckey, block_cache, block_cache_compressed, ro, rep->ioptions,
             block_entry, raw_block.release(), rep->table_options.format_version,
@@ -1631,6 +1652,13 @@ bool BlockBasedTable::FullFilterKeyMayMatch(const ReadOptions& read_options,
   return true;
 }
 
+/*
+ * 传入的key应该包含sequence number
+ * 
+ * 为什么blockcache中的key必须是[file_id, block_offset]的方式，而不能直接是记录的key本身？
+ * 原因是，blockcache缓冲的是block，如果希望通过记录的key来直接Loopup blockcahce，那么势必需要记录
+ * key与block的映射关系。
+ */
 Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
                             GetContext* get_context, bool skip_filters) {
   Status s;
@@ -1644,20 +1672,34 @@ Status BlockBasedTable::Get(const ReadOptions& read_options, const Slice& key,
   // First check the full filter
   // If full filter not useful, Then go into each block
   if (!FullFilterKeyMayMatch(read_options, filter, key, no_io)) {
-    /* bloom过滤器确认key不存在 */
+    /*
+     * 如果bloom过滤器确认key不存在，那么直接返回吧
+     */
     RecordTick(rep_->ioptions.statistics, BLOOM_FILTER_USEFUL);
   } else {
     BlockIter iiter_on_stack;
+    /* 构建IndexIterator, 如果blockcache中没有缓冲Index block，则会读盘 */
     auto iiter = NewIndexIterator(read_options, &iiter_on_stack);
     std::unique_ptr<InternalIterator> iiter_unique_ptr;
     if (iiter != &iiter_on_stack) {
       iiter_unique_ptr.reset(iiter);
     }
 
+    /*
+     * 这里有个问题：既然index block是一个二分查找的数据结构，
+     * 那么Seek一次应该就定位到key所在的data block中了吧，那
+     * 为什么这里是一个for循环呢?
+     * 猜测有相同的key，跨越了不同的data block
+     */
+    /*
+     * 通过IndexIterator在Index block中检索用户需要的key 
+     */
     bool done = false;
     for (iiter->Seek(key); iiter->Valid() && !done; iiter->Next()) {
       Slice handle_value = iiter->value();
-
+      /*
+       * 获取block的信息，然后再子bloom filter中再去判断该block是否存在在data block中 
+       */
       BlockHandle handle;
       bool not_exist_in_filter =
           filter != nullptr && filter->IsBlockBased() == true &&
