@@ -17,12 +17,15 @@
 #pragma once
 
 #include <stdint.h>
+
 #include <cstdarg>
 #include <functional>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "rocksdb/functor_wrapper.h"
 #include "rocksdb/status.h"
 #include "rocksdb/thread_status.h"
 
@@ -35,7 +38,7 @@
 
 #if defined(__GNUC__) || defined(__clang__)
 #define ROCKSDB_PRINTF_FORMAT_ATTR(format_param, dots_param) \
-    __attribute__((__format__(__printf__, format_param, dots_param)))
+  __attribute__((__format__(__printf__, format_param, dots_param)))
 #else
 #define ROCKSDB_PRINTF_FORMAT_ATTR(format_param, dots_param)
 #endif
@@ -61,6 +64,7 @@ class ThreadStatusUpdater;
 struct ThreadStatus;
 class FileSystem;
 class SystemClock;
+struct ConfigOptions;
 
 const size_t kDefaultPageSize = 4 * 1024;
 
@@ -166,11 +170,43 @@ class Env {
   static const char* Type() { return "Environment"; }
 
   // Loads the environment specified by the input value into the result
+  // The CreateFromString alternative should be used; this method may be
+  // deprecated in a future release.
   static Status LoadEnv(const std::string& value, Env** result);
 
   // Loads the environment specified by the input value into the result
+  // The CreateFromString alternative should be used; this method may be
+  // deprecated in a future release.
   static Status LoadEnv(const std::string& value, Env** result,
                         std::shared_ptr<Env>* guard);
+
+  // Loads the environment specified by the input value into the result
+  // @see Customizable for a more detailed description of the parameters and
+  // return codes
+  //
+  // @param config_options Controls how the environment is loaded.
+  // @param value the name and associated properties for the environment.
+  // @param result On success, the environment that was loaded.
+  // @param guard If specified and the loaded environment is not static,
+  //      this value will contain the loaded environment (guard.get() ==
+  //      result).
+  // @return OK If the environment was successfully loaded (and optionally
+  // prepared)
+  // @return not-OK if the load failed.
+  static Status CreateFromString(const ConfigOptions& config_options,
+                                 const std::string& value, Env** result);
+  static Status CreateFromString(const ConfigOptions& config_options,
+                                 const std::string& value, Env** result,
+                                 std::shared_ptr<Env>* guard);
+
+  // Loads the environment specified by the env and fs uri.
+  // If both are specified, an error is returned.
+  // Otherwise, the environment is created by loading (via CreateFromString)
+  // the appropriate env/fs from the corresponding values.
+  static Status CreateFromUri(const ConfigOptions& options,
+                              const std::string& env_uri,
+                              const std::string& fs_uri, Env** result,
+                              std::shared_ptr<Env>* guard);
 
   // Return a default environment suitable for the current operating
   // system.  Sophisticated users may wish to provide their own Env
@@ -422,6 +458,21 @@ class Env {
   // When "function(arg)" returns, the thread will be destroyed.
   virtual void StartThread(void (*function)(void* arg), void* arg) = 0;
 
+  // Start a new thread, invoking "function(args...)" within the new thread.
+  // When "function(args...)" returns, the thread will be destroyed.
+  template <typename FunctionT, typename... Args>
+  void StartThreadTyped(FunctionT function, Args&&... args) {
+    using FWType = FunctorWrapper<Args...>;
+    StartThread(
+        [](void* arg) {
+          auto* functor = static_cast<FWType*>(arg);
+          functor->invoke();
+          delete functor;
+        },
+        new FWType(std::function<void(Args...)>(function),
+                   std::forward<Args>(args)...));
+  }
+
   // Wait for all threads started by StartThread to terminate.
   virtual void WaitForJoin() {}
 
@@ -543,6 +594,13 @@ class Env {
   // is a copy of the EnvOptions in the parameters, but is optimized for reading
   // table files.
   virtual EnvOptions OptimizeForCompactionTableRead(
+      const EnvOptions& env_options,
+      const ImmutableDBOptions& db_options) const;
+
+  // OptimizeForBlobFileRead will create a new EnvOptions object that
+  // is a copy of the EnvOptions in the parameters, but is optimized for reading
+  // blob files.
+  virtual EnvOptions OptimizeForBlobFileRead(
       const EnvOptions& env_options,
       const ImmutableDBOptions& db_options) const;
 
@@ -1494,6 +1552,11 @@ class EnvWrapper : public Env {
       const EnvOptions& env_options,
       const ImmutableDBOptions& db_options) const override {
     return target_->OptimizeForCompactionTableRead(env_options, db_options);
+  }
+  EnvOptions OptimizeForBlobFileRead(
+      const EnvOptions& env_options,
+      const ImmutableDBOptions& db_options) const override {
+    return target_->OptimizeForBlobFileRead(env_options, db_options);
   }
   Status GetFreeSpace(const std::string& path, uint64_t* diskfree) override {
     return target_->GetFreeSpace(path, diskfree);

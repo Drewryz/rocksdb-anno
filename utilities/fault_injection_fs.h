@@ -22,7 +22,7 @@
 #include <string>
 
 #include "file/filename.h"
-#include "include/rocksdb/file_system.h"
+#include "rocksdb/file_system.h"
 #include "util/mutexlock.h"
 #include "util/random.h"
 #include "util/thread_local.h"
@@ -145,6 +145,8 @@ class TestFSRandomAccessFile : public FSRandomAccessFile {
   }
   bool use_direct_io() const override { return target_->use_direct_io(); }
 
+  size_t GetUniqueId(char* id, size_t max_size) const override;
+
  private:
   std::unique_ptr<FSRandomAccessFile> target_;
   FaultInjectionTestFS* fs_;
@@ -174,8 +176,12 @@ class FaultInjectionTestFS : public FileSystemWrapper {
         filesystem_writable_(false),
         thread_local_error_(new ThreadLocalPtr(DeleteThreadLocalErrorContext)),
         enable_write_error_injection_(false),
+        enable_metadata_write_error_injection_(false),
         write_error_rand_(0),
-        ingest_data_corruption_before_write_(false) {}
+        write_error_one_in_(0),
+        metadata_write_error_one_in_(0),
+        ingest_data_corruption_before_write_(false),
+        fail_get_file_unique_id_(false) {}
   virtual ~FaultInjectionTestFS() { error_.PermitUncheckedError(); }
 
   const char* Name() const override { return "FaultInjectionTestFS"; }
@@ -318,6 +324,16 @@ class FaultInjectionTestFS : public FileSystemWrapper {
     return checksum_handoff_func_tpye_;
   }
 
+  void SetFailGetUniqueId(bool flag) {
+    MutexLock l(&mutex_);
+    fail_get_file_unique_id_ = flag;
+  }
+
+  bool ShouldFailGetUniqueId() {
+    MutexLock l(&mutex_);
+    return fail_get_file_unique_id_;
+  }
+
   // Specify what the operation, so we can inject the right type of error
   enum ErrorOperation : char {
     kRead = 0,
@@ -361,9 +377,17 @@ class FaultInjectionTestFS : public FileSystemWrapper {
     write_error_allowed_types_ = types;
   }
 
+  void SetRandomMetadataWriteError(int one_in) {
+    MutexLock l(&mutex_);
+    metadata_write_error_one_in_ = one_in;
+  }
+
   // Inject an write error with randomlized parameter and the predefined
   // error type. Only the allowed file types will inject the write error
   IOStatus InjectWriteError(const std::string& file_name);
+
+  // Ingest error to metadata operations.
+  IOStatus InjectMetadataWriteError();
 
   // Inject an error. For a READ operation, a status of IOError(), a
   // corruption in the contents of scratch, or truncation of slice
@@ -397,6 +421,11 @@ class FaultInjectionTestFS : public FileSystemWrapper {
     enable_write_error_injection_ = true;
   }
 
+  void EnableMetadataWriteErrorInjection() {
+    MutexLock l(&mutex_);
+    enable_metadata_write_error_injection_ = true;
+  }
+
   void DisableWriteErrorInjection() {
     MutexLock l(&mutex_);
     enable_write_error_injection_ = false;
@@ -408,6 +437,11 @@ class FaultInjectionTestFS : public FileSystemWrapper {
     if (ctx) {
       ctx->enable_error_injection = false;
     }
+  }
+
+  void DisableMetadataWriteErrorInjection() {
+    MutexLock l(&mutex_);
+    enable_metadata_write_error_injection_ = false;
   }
 
   // We capture a backtrace every time a fault is injected, for debugging
@@ -456,11 +490,14 @@ class FaultInjectionTestFS : public FileSystemWrapper {
 
   std::unique_ptr<ThreadLocalPtr> thread_local_error_;
   bool enable_write_error_injection_;
+  bool enable_metadata_write_error_injection_;
   Random write_error_rand_;
   int write_error_one_in_;
+  int metadata_write_error_one_in_;
   std::vector<FileType> write_error_allowed_types_;
   bool ingest_data_corruption_before_write_;
   ChecksumType checksum_handoff_func_tpye_;
+  bool fail_get_file_unique_id_;
 };
 
 }  // namespace ROCKSDB_NAMESPACE
