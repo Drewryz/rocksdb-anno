@@ -50,7 +50,9 @@ class BlobFileAddition {
   enum CustomFieldTags : uint32_t;
 
   uint64_t blob_file_number_ = kInvalidBlobFileNumber;
+  /* 记录了当前blob文件记录的blob数据的个数 */
   uint64_t total_blob_count_ = 0;
+  /* 记录了当前blob文件记录的blob数据的大小 */
   uint64_t total_blob_bytes_ = 0;
   std::string checksum_method_;
   std::string checksum_value_;

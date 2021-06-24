@@ -371,6 +371,11 @@ Status BlobFileBuilder::CloseBlobFile() {
   return s;
 }
 
+/*
+ * 判断当前blob文件是否超过了用户配置的blob文件最大size，
+ * 超过的话则调用CloseBlobFile，关闭当前blob文件。
+ * 注意：关闭当前的blob文件后，如果继续写blob data，则会新建blob文件，参见OpenBlobFileIfNeeded函数
+ */
 Status BlobFileBuilder::CloseBlobFileIfNeeded() {
   assert(IsBlobFileOpen());
 

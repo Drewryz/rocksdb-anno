@@ -27,6 +27,9 @@ namespace ROCKSDB_NAMESPACE {
 
 #ifndef ROCKSDB_LITE
 
+/*
+ * 全局map对象。给定一个StateType，可以返回StateType对应的字符串表示
+ */
 const std::map<LevelStatType, LevelStat> InternalStats::compaction_level_stats =
     {
         {LevelStatType::NUM_FILES, LevelStat{"NumFiles", "Files"}},
@@ -90,6 +93,11 @@ void PrintLevelStatsHeader(char* buf, size_t len, const std::string& cf_name,
            std::string(line_size, '-').c_str());
 }
 
+/*
+ * 该函数用于获取特定level的statistic数据指标
+ * level_stats: 传出参数，由于记录结果
+ * stats: 传入参数，记录了所需的数据
+ */
 void PrepareLevelStats(std::map<LevelStatType, double>* level_stats,
                        int num_files, int being_compacted,
                        double total_file_size, double score, double w_amp,
@@ -128,6 +136,9 @@ void PrepareLevelStats(std::map<LevelStatType, double>* level_stats,
   (*level_stats)[LevelStatType::W_BLOB_GB] = stats.bytes_written_blob / kGB;
 }
 
+/*
+ * 该函数输出每一层的state数据 
+ */
 void PrintLevelStats(char* buf, size_t len, const std::string& name,
                      const std::map<LevelStatType, double>& stat_value) {
   snprintf(
@@ -1142,6 +1153,13 @@ void InternalStats::DumpCFMapStats(
   DumpCFMapStatsIOStalls(cf_stats);
 }
 
+//   DumpCFMapStats(vstorage, &levels_stats, &compaction_stats_sum);
+/*
+ * 该函数根据传入的version信息，获取levels_stats和compaction_stats_sum数据
+ * vstorage: 传入参数
+ * levels_stats: 传出参数
+ * compaction_stats_sum: 传出参数
+ */
 void InternalStats::DumpCFMapStats(
     const VersionStorageInfo* vstorage,
     std::map<int, std::map<LevelStatType, double>>* levels_stats,
@@ -1265,6 +1283,9 @@ void InternalStats::DumpCFStats(std::string* value) {
   DumpCFFileHistogram(value);
 }
 
+/*
+ * rocksdb用于输出引擎状态数据的唯一入口 
+ */
 void InternalStats::DumpCFStatsNoFileHistogram(std::string* value) {
   char buf[2000];
   // Per-ColumnFamily stats

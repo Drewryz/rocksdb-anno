@@ -58,6 +58,10 @@ extern const DBPropertyInfo* GetPropertyInfo(const Slice& property);
 
 #ifndef ROCKSDB_LITE
 #undef SCORE
+
+/*
+ * LevelStatType记录了所有rocksdb输出的state指标 
+ */
 enum class LevelStatType {
   INVALID = 0,
   NUM_FILES,
@@ -355,7 +359,7 @@ class InternalStats {
         counts[i] -= c.counts[i];
       }
     }
-  };
+  }; // end CompactionStats
 
   void Clear() {
     for (int i = 0; i < kIntStatsNumMax; i++) {
@@ -378,6 +382,10 @@ class InternalStats {
     started_at_ = clock_->NowMicros();
   }
 
+  /*
+   * 由于rocksdb统计的STATSTICS输出的是一个累加值，
+   * 每次compaction做完以后，便会将数据累加到comp_stats_变量中
+   */
   void AddCompactionStats(int level, Env::Priority thread_pri,
                           const CompactionStats& stats) {
     comp_stats_[level].Add(stats);
@@ -463,6 +471,9 @@ class InternalStats {
   uint64_t cf_stats_value_[INTERNAL_CF_STATS_ENUM_MAX];
   uint64_t cf_stats_count_[INTERNAL_CF_STATS_ENUM_MAX];
   // Per-ColumnFamily/level compaction stats
+  /*
+   * 记录了每一层的状态信息，LOG文件中的Compaction Stats数值就是记录在这个vector中的 
+   */
   std::vector<CompactionStats> comp_stats_;
   std::vector<CompactionStats> comp_stats_by_pri_;
   std::vector<HistogramImpl> file_read_latency_;

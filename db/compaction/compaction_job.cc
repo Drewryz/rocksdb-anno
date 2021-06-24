@@ -1817,6 +1817,9 @@ void CopyPrefix(const Slice& src, size_t prefix_length, std::string* dst) {
 
 #endif  // !ROCKSDB_LITE
 
+/*
+ * compaction_stats_记录的结果会传给PrepareLevelStats函数 
+ */
 void CompactionJob::UpdateCompactionStats() {
   assert(compact_);
 

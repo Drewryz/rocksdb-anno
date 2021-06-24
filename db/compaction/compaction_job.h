@@ -150,8 +150,10 @@ class CompactionJob {
 
   // CompactionJob state
   struct CompactionState;
+  /* ？？？ */
   CompactionState* compact_;
   CompactionJobStats* compaction_job_stats_;
+  /* 每次新建一个compaction job，都会新建一个compaction_stats_对象，用于记录这次做compaction的数据信息 */
   InternalStats::CompactionStats compaction_stats_;
 
   // DBImpl state
