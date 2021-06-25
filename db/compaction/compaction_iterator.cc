@@ -813,12 +813,22 @@ void CompactionIterator::NextFromInput() {
   }
 }
 
+/*
+ * 该函数用于抽取大value，如果开启了kv分离，并且value的size超过了用户配置的kv分离阈值，
+ * 则将value写入blob_file_builder_
+ */
 bool CompactionIterator::ExtractLargeValueIfNeededImpl() {
   if (!blob_file_builder_) {
     return false;
   }
 
   blob_index_.clear();
+  /*
+   * 调用blob_file_builder_的Add函数将value加入blob_file_builder
+   * blob_index_是传出参数，记录了blob数据在blob文件中的位置
+   * 注意：该函数还持有对value size的判断逻辑
+   * TODO: blobfilebuilder是如何分配blob数据的位置的 
+   */
   const Status s = blob_file_builder_->Add(user_key(), value_, &blob_index_);
 
   if (!s.ok()) {
@@ -845,6 +855,9 @@ void CompactionIterator::ExtractLargeValueIfNeeded() {
   }
 
   ikey_.type = kTypeBlobIndex;
+  /*
+   * 此处的调用上下文为更改了ikey的type类型
+   */
   current_key_.UpdateInternalKey(ikey_.sequence, ikey_.type);
 }
 

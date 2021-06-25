@@ -307,6 +307,47 @@ void FlushJob::Cancel() {
   base_->Unref();
 }
 
+/*
+ * 调用栈：
+#0  rocksdb::FlushJob::WriteLevel0Table (this=0x7ffff49c2fb0) at /root/code/rocksdb/db/flush_job.cc:314
+#1  0x00007ffff7006a7e in rocksdb::FlushJob::Run (this=0x7ffff49c2fb0, prep_tracker=0x656ce8, file_meta=0x7ffff49c2f10) at /root/code/rocksdb/db/flush_job.cc:233
+#2  0x00007ffff6f7709b in rocksdb::DBImpl::FlushMemTableToOutputFile (this=0x655910, cfd=0x66cfa0, mutable_cf_options=..., made_progress=0x7ffff49c477f,
+    job_context=0x7ffff49c4580, superversion_context=0x7fffe8000c40, snapshot_seqs=..., earliest_write_conflict_snapshot=72057594037927935, snapshot_checker=0x0,
+    log_buffer=0x7ffff49c3c80, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:210
+#3  0x00007ffff6f77af9 in rocksdb::DBImpl::FlushMemTablesToOutputFiles (this=0x655910, bg_flush_args=..., made_progress=0x7ffff49c477f, job_context=0x7ffff49c4580,
+    log_buffer=0x7ffff49c3c80, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:337
+#4  0x00007ffff6f84cc4 in rocksdb::DBImpl::BackgroundFlush (this=0x655910, made_progress=0x7ffff49c477f, job_context=0x7ffff49c4580, log_buffer=0x7ffff49c3c80,
+    reason=0x7ffff49c3c6c, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2558
+#5  0x00007ffff6f852d6 in rocksdb::DBImpl::BackgroundCallFlush (this=0x655910, thread_pri=rocksdb::Env::HIGH) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2598
+#6  0x00007ffff6f84013 in rocksdb::DBImpl::BGWorkFlush (arg=0x677d20) at /root/code/rocksdb/db/db_impl/db_impl_compaction_flush.cc:2428
+#7  0x00007ffff73749e1 in std::__invoke_impl<void, void (*&)(void*), void*&> (__f=@0x6785d0: 0x7ffff6f83f5c <rocksdb::DBImpl::BGWorkFlush(void*)>,
+    __args#0=@0x6785d8: 0x677d20) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:60
+#8  0x00007ffff73745e3 in std::__invoke<void (*&)(void*), void*&> (__fn=@0x6785d0: 0x7ffff6f83f5c <rocksdb::DBImpl::BGWorkFlush(void*)>, __args#0=@0x6785d8: 0x677d20)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:95
+#9  0x00007ffff7373dae in std::_Bind<void (*(void*))(void*)>::__call<void, , 0ul>(std::tuple<>&&, std::_Index_tuple<0ul>) (this=0x6785d0,
+    __args=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x40e1718, DIE 0x4113214>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/functional:400
+#10 0x00007ffff737311c in std::_Bind<void (*(void*))(void*)>::operator()<, void>() (this=0x6785d0) at /opt/rh/devtoolset-8/root/usr/include/c++/8/functional:484
+#11 0x00007ffff73720ea in std::_Function_handler<void (), std::_Bind<void (*(void*))(void*)> >::_M_invoke(std::_Any_data const&) (__functor=...)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/std_function.h:297
+#12 0x00007ffff7051f18 in std::function<void ()>::operator()() const (this=0x7ffff49c49a0) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/std_function.h:687
+#13 0x00007ffff736eab7 in rocksdb::ThreadPoolImpl::Impl::BGThread (this=0x653110, thread_id=0) at /root/code/rocksdb/util/threadpool_imp.cc:266
+#14 0x00007ffff736ec90 in rocksdb::ThreadPoolImpl::Impl::BGThreadWrapper (arg=0x657540) at /root/code/rocksdb/util/threadpool_imp.cc:307
+#15 0x00007ffff73718d3 in std::__invoke_impl<void, void (*)(void*), rocksdb::BGThreadMetadata*>(std::__invoke_other, void (*&&)(void*), rocksdb::BGThreadMetadata*&&) (
+    __f=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x40e1718, DIE 0x4115e7d>,
+    __args#0=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x40e1718, DIE 0x4115e9a>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:60
+#16 0x00007ffff7370d2a in std::__invoke<void (*)(void*), rocksdb::BGThreadMetadata*>(void (*&&)(void*), rocksdb::BGThreadMetadata*&&) (
+    __fn=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x40e1718, DIE 0x41173c1>,
+    __args#0=<unknown type in /root/code/rocksdb/build/librocksdb.so.6, CU 0x40e1718, DIE 0x41173de>) at /opt/rh/devtoolset-8/root/usr/include/c++/8/bits/invoke.h:95
+#17 0x00007ffff737506f in std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> >::_M_invoke<0ul, 1ul> (this=0x657568)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:244
+#18 0x00007ffff737502a in std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> >::operator() (this=0x657568)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:253
+#19 0x00007ffff737500e in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)(void*), rocksdb::BGThreadMetadata*> > >::_M_run (this=0x657560)
+    at /opt/rh/devtoolset-8/root/usr/include/c++/8/thread:196
+#20 0x00007ffff5d78630 in execute_native_thread_routine () at ../../../../../libstdc++-v3/src/c++11/thread.cc:80
+#21 0x00007ffff6090dd5 in start_thread () from /lib64/libpthread.so.0
+#22 0x00007ffff54c902d in clone () from /lib64/libc.so.6 
+ */
 Status FlushJob::WriteLevel0Table() {
   AutoThreadOperationStageUpdater stage_updater(
       ThreadStatus::STAGE_FLUSH_WRITE_L0);

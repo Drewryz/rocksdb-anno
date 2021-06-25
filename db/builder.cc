@@ -70,6 +70,9 @@ TableBuilder* NewTableBuilder(
       column_family_id, file);
 }
 
+/*
+ * 写table 
+ */
 Status BuildTable(
     const std::string& dbname, VersionSet* versions,
     const ImmutableDBOptions& db_options, const ImmutableCFOptions& ioptions,
@@ -99,6 +102,9 @@ Status BuildTable(
          column_family_name.empty());
   // Reports the IOStats for flush for every following bytes.
   const size_t kReportFlushIOStatsEvery = 1048576;
+  /*
+   * reading here. 2021-6-25-10:35 
+   */
   OutputValidator output_validator(
       internal_comparator,
       /*enable_order_check=*/
@@ -182,6 +188,10 @@ Status BuildTable(
                                   blob_file_additions)
             : nullptr);
 
+    /*
+     * CompactionIterator持有BlobFileBuilder，在遍历的过程中将满足条件的blob数据写入BlobFileBuilder
+     * 最后，调用BlobFileBuilder的Finish函数完成数据的持久化
+     */
     CompactionIterator c_iter(
         iter, internal_comparator.user_comparator(), &merge, kMaxSequenceNumber,
         &snapshots, earliest_write_conflict_snapshot, snapshot_checker, env,
@@ -231,6 +241,10 @@ Status BuildTable(
       }
     }
 
+    /*
+     * 从下面的逻辑来看，在flush memtable时，rocksdb采用了先Finish SST，再Finish blob文件的策略，
+     * 这里的问题是如果Finish完SST之后，系统故障，那rocksdb如何保证数据的一致性，猜测应该是重新回放WAL
+     */
     TEST_SYNC_POINT("BuildTable:BeforeFinishBuildTable");
     const bool empty = builder->IsEmpty();
     if (!s.ok() || empty) {
