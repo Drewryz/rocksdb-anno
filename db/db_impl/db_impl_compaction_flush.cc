@@ -139,6 +139,13 @@ IOStatus DBImpl::SyncClosedLogs(JobContext* job_context) {
   return io_s;
 }
 
+/*
+ * 1. 该函数首先调用PickMemTable获取需要做flush的memtable，所有未被做flush的immutable都会被选中。
+ * 然后，为这次flush记录一些元数据，比如记录将要做flush的这批memtable对应的wal日志编号，当故障恢复
+ * 时就可以跳过这些wal日志文件了。此时还记录一个SST文件的编号，这次flush生成的SST文件就会写到这个文件。
+ * 2. flush_job.Run
+ * 3. InstallSuperVersionAndScheduleWork
+ */
 Status DBImpl::FlushMemTableToOutputFile(
     ColumnFamilyData* cfd, const MutableCFOptions& mutable_cf_options,
     bool* made_progress, JobContext* job_context,
@@ -313,6 +320,13 @@ Status DBImpl::FlushMemTableToOutputFile(
   return s;
 }
 
+/*
+ * reading here. 2021-6-29-11:59
+ * 1. 获取与快照相关的逻辑
+ * 2. 调用FlushMemTableToOutputFile做flush
+ * TODO:
+ * 1. memtable的flush为何与快照相关，查看获取快照的逻辑
+ */
 Status DBImpl::FlushMemTablesToOutputFiles(
     const autovector<BGFlushArg>& bg_flush_args, bool* made_progress,
     JobContext* job_context, LogBuffer* log_buffer, Env::Priority thread_pri) {
@@ -2334,6 +2348,9 @@ DBImpl::FlushRequest DBImpl::PopFirstFromFlushQueue() {
   FlushRequest flush_req = flush_queue_.front();
   flush_queue_.pop_front();
   if (!immutable_db_options_.atomic_flush) {
+    /*
+     * 从这里看来，一般来说，FlushRequest应该只包括一个元素
+     */
     assert(flush_req.size() == 1);
   }
   for (const auto& elem : flush_req) {
@@ -2494,6 +2511,13 @@ void DBImpl::UnscheduleFlushCallback(void* arg) {
   TEST_SYNC_POINT("DBImpl::UnscheduleFlushCallback");
 }
 
+/*
+ * 实际的flush操作
+ * made_progress: 传出参数
+ * job_context: 传出参数
+ * 码了这么多代码，整体说来，这个函数就是从flush队列中拿到FlushRequest对象，
+ * 然后调用FlushMemTablesToOutputFiles，执行实际的Flush逻辑。
+ */
 Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
                                LogBuffer* log_buffer, FlushReason* reason,
                                Env::Priority thread_pri) {
@@ -2555,6 +2579,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
           bg_job_limits.max_compactions, bg_flush_scheduled_,
           bg_compaction_scheduled_);
     }
+    /* reading here. 2021-6-29-11:34 */
     status = FlushMemTablesToOutputFiles(bg_flush_args, made_progress,
                                          job_context, log_buffer, thread_pri);
     TEST_SYNC_POINT("DBImpl::BackgroundFlush:BeforeFlush");
@@ -2563,6 +2588,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
     *reason = bg_flush_args[0].cfd_->GetFlushReason();
     for (auto& arg : bg_flush_args) {
       ColumnFamilyData* cfd = arg.cfd_;
+      /* 尝试释放cfd */
       if (cfd->UnrefAndTryDelete()) {
         arg.cfd_ = nullptr;
       }
@@ -2575,7 +2601,9 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
 }
 
 /*
- * reading here. 2021-6-25-19:49 
+ * 该函数首先调用BackgroundFlush，完成实际的flush动作,
+ * 然后清理废弃的文件，所谓废弃的文件包括SST文件/WAL日志文件/blob文件，
+ * 清理废弃的文件包括两步：寻找过期的文件(FindObsoleteFiles)与实际清理过期的文件(PurgeObsoleteFiles)
  */
 void DBImpl::BackgroundCallFlush(Env::Priority thread_pri) {
   bool made_progress = false;
@@ -2592,6 +2620,11 @@ void DBImpl::BackgroundCallFlush(Env::Priority thread_pri) {
     assert(bg_flush_scheduled_);
     num_running_flushes_++;
 
+    /*
+     * 每次flush操作都会输出输出一个SST文件，CaptureCurrentFileNumberInPendingOutputs向当前
+     * 系统申请一个SST文件编号，pending_outputs_inserted_elem记录了该文件编号在全局pending列表
+     * 中的位置。
+     */
     std::unique_ptr<std::list<uint64_t>::iterator>
         pending_outputs_inserted_elem(new std::list<uint64_t>::iterator(
             CaptureCurrentFileNumberInPendingOutputs()));

@@ -1929,6 +1929,7 @@ class DBImpl : public DB {
   // must be under either mutex_ or log_write_mutex_. Since after ::Open,
   // logfile_number_ is currently updated only in write_thread_, it can be read
   // from the same write_thread_ without any locks.
+  /* logfile_number_: 当前WAL日志文件的编号 */
   uint64_t logfile_number_;
   std::deque<uint64_t>
       log_recycle_files_;  // a list of log files that we can recycle

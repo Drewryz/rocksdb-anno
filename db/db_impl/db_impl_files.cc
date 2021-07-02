@@ -102,6 +102,9 @@ bool DBImpl::IsFileDeletionsEnabled() const {
 // force = false -- don't force the full scan, except every
 //  mutable_db_options_.delete_obsolete_files_period_micros
 // force = true -- force the full scan
+/*
+ * no_full_scan: 默认为false 
+ */
 void DBImpl::FindObsoleteFiles(JobContext* job_context, bool force,
                                bool no_full_scan) {
   mutex_.AssertHeld();
@@ -162,6 +165,10 @@ void DBImpl::FindObsoleteFiles(JobContext* job_context, bool force,
   job_context->prev_log_number = versions_->prev_log_number();
 
   versions_->AddLiveFiles(&job_context->sst_live, &job_context->blob_live);
+
+  /*
+   * reading here. 2021-6-28-20:17
+   */
   if (doing_the_full_scan) {
     InfoLogPrefix info_log_prefix(!immutable_db_options_.db_log_dir.empty(),
                                   dbname_);

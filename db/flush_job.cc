@@ -167,6 +167,14 @@ void FlushJob::RecordFlushIOStats() {
   IOSTATS_RESET(bytes_written);
 }
 
+/*
+ * 获取需要做flush的memtable
+ * 1. 通过PickMemtablesToFlush，pick出当前cfd所有需要做flush的memtable，获取的逻辑很简单，
+ *    cfd immutable list中未开始做flush的memtable都会被pick。
+ * 2. 为本次flush记录一些元数据。比如记录将要做flush的这批memtable对应的wal日志编号，当故障恢复
+ *    时就可以跳过这些wal日志文件了。此时还记录一个SST文件的编号，这次flush生成的SST文件就会写到
+ *    这个文件中。
+ */
 void FlushJob::PickMemTable() {
   db_mutex_->AssertHeld();
   assert(!pick_memtable_called);
@@ -189,7 +197,9 @@ void FlushJob::PickMemTable() {
   // will no longer be picked up for recovery.
   edit_->SetLogNumber(mems_.back()->GetNextLogNumber());
   edit_->SetColumnFamily(cfd_->GetID());
-
+  /*
+   * reading here. 2021-6-29-14:51 
+   */
   // path 0 for level 0 file.
   meta_.fd = FileDescriptor(versions_->NewFileNumber(), 0, 0);
 
@@ -197,6 +207,10 @@ void FlushJob::PickMemTable() {
   base_->Ref();  // it is likely that we do not need this reference
 }
 
+/*
+ * 1. WriteLevel0Table
+ * 2. TryInstallMemtableFlushResults
+ */
 Status FlushJob::Run(LogsWithPrepTracker* prep_tracker,
                      FileMetaData* file_meta) {
   TEST_SYNC_POINT("FlushJob::Start");
@@ -240,9 +254,10 @@ Status FlushJob::Run(LogsWithPrepTracker* prep_tracker,
     s = Status::ShutdownInProgress("Database shutdown");
   }
 
+  /* reading here. 2021-6-29-15:46 */
   if (!s.ok()) {
     cfd_->imm()->RollbackMemtableFlush(mems_, meta_.fd.GetNumber());
-  } else if (write_manifest_) {
+  } else if (write_manifest_) { /* 通常来说write_manifest_为true */
     TEST_SYNC_POINT("FlushJob::InstallResults");
     // Replace immutable memtable with the generated Table
     IOStatus tmp_io_s;

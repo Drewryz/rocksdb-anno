@@ -3610,6 +3610,10 @@ bool VersionStorageInfo::RangeMightExistAfterSortedRun(
   return false;
 }
 
+/*
+ * live_table_files: 输出参数
+ * live_blob_files: 输出参数
+ */
 void Version::AddLiveFiles(std::vector<uint64_t>* live_table_files,
                            std::vector<uint64_t>* live_blob_files) const {
   assert(live_table_files);
@@ -5655,6 +5659,13 @@ void VersionSet::GetObsoleteFiles(std::vector<ObsoleteFileInfo>* files,
   assert(blob_files->empty());
   assert(manifest_filenames->empty());
 
+  /*
+   * 遍历obsolete_files_：
+   * 1. 如果文件的序号在边界以外，则表示可以安全清理该文件，所以将其放入files中
+   * 2. 如果文件序号在边界以内，表示有线程正在处理该文件，所以不做处理
+   * TODO: obsolete_files_是如何添加数据的
+   * reading here. 2021-6-28-17:43
+   */
   std::vector<ObsoleteFileInfo> pending_files;
   for (auto& f : obsolete_files_) {
     if (f.metadata->fd.GetNumber() < min_pending_output) {

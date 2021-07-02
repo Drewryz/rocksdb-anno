@@ -383,6 +383,15 @@ void MemTableList::RollbackMemtableFlush(const autovector<MemTable*>& mems,
   imm_flush_needed.store(true, std::memory_order_release);
 }
 
+/*
+ * 将flush的结果commit到manifest
+ * mems: 传入参数，记录了已经flush的mems
+ * file_number: 传入参数，记录了这批memtable flush到磁盘时的SST number
+ * 
+ * TODO: 
+ * 1. LogAndApply
+ * 2. RemoveMemTablesOrRestoreFlags
+ */
 // Try record a successful flush in the manifest file. It might just return
 // Status::OK letting a concurrent flush to do actual the recording..
 Status MemTableList::TryInstallMemtableFlushResults(
@@ -397,6 +406,9 @@ Status MemTableList::TryInstallMemtableFlushResults(
       ThreadStatus::STAGE_MEMTABLE_INSTALL_FLUSH_RESULTS);
   mu->AssertHeld();
 
+  /*
+   * 更改这批mems的flush标识 
+   */
   // Flush was successful
   // Record the status on the memtable object. Either this call or a call by a
   // concurrent flush thread will read the status and write it to manifest.
@@ -418,15 +430,24 @@ Status MemTableList::TryInstallMemtableFlushResults(
   // Only a single thread can be executing this piece of code
   commit_in_progress_ = true;
 
+  /*
+   * WTF，下面这个while逻辑十分复杂
+   * reading here. 2021-6-29-20:58
+   */
   // Retry until all completed flushes are committed. New flushes can finish
   // while the current thread is writing manifest where mutex is released.
   while (s.ok()) {
+    /* 获取当前cfd中所有的immutable */
     auto& memlist = current_->memlist_;
     // The back is the oldest; if flush_completed_ is not set to it, it means
     // that we were assigned a more recent memtable. The memtables' flushes must
     // be recorded in manifest in order. A concurrent flush thread, who is
     // assigned to flush the oldest memtable, will later wake up and does all
     // the pending writes to manifest, in order.
+
+    /*
+     * while循环退出条件 
+     */
     if (memlist.empty() || !memlist.back()->flush_completed_) {
       break;
     }
@@ -437,13 +458,23 @@ Status MemTableList::TryInstallMemtableFlushResults(
     size_t batch_count = 0;
     autovector<VersionEdit*> edit_list;
     autovector<MemTable*> memtables_to_flush;
+    /*
+     * 逆序遍历已经做完flush的immutable列表，并通过batch_count记录已经完成flush的immutable的个数 
+     */
     // enumerate from the last (earliest) element to see how many batch finished
     for (auto it = memlist.rbegin(); it != memlist.rend(); ++it) {
       MemTable* m = *it;
       if (!m->flush_completed_) {
         break;
       }
+      /*
+       * 下面的if逻辑表示我们找到了新的一批immutable，那么将这批immutable的edit信息记录下来，等待写入manifest
+       * 注意对于每一批的immutable来说，这批immutable的第一个immutable记录了Version信息
+       */
       if (it == memlist.rbegin() || batch_file_number != m->file_number_) {
+        /*
+         * batch_file_number记录了这一批immutable的SST编号
+         */
         batch_file_number = m->file_number_;
         if (m->edit_.GetBlobFileAdditions().empty()) {
           ROCKS_LOG_BUFFER(log_buffer,
@@ -581,6 +612,13 @@ uint64_t MemTableList::ApproximateOldestKeyTime() const {
   return std::numeric_limits<uint64_t>::max();
 }
 
+/*
+ * 新增一个MemTableListVersion。
+ * rocksdb对immutable列表的管理，采用COW的策略。
+ * 原因在于，rocksdb的增删改查都要读immutable列表，同时也会有新的memtable加入immutable列表，
+ * 也就是说对immutable列表的访问处于关键路径上，此时采用COW的策略可以提升并发，避免锁竞争。
+ * 
+ */
 void MemTableList::InstallNewVersion() {
   if (current_->refs_ == 1) {
     // we're the only one using the version, just keep using it

@@ -35,6 +35,11 @@ class MemTableList;
 
 struct FlushJobInfo;
 
+/*
+ * MemTableListVersion才是真正记录immutable list的对象。
+ * MemTableListVersion对象采用写时复制的方式构建。
+ * 
+ */
 // keeps a list of immutable memtables in a vector. the list is immutable
 // if refcount is bigger than one. It is used as a state for Get() and
 // Iterator code paths

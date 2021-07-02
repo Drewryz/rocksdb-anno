@@ -1386,6 +1386,9 @@ class VersionSet {
   // Current size of manifest file
   uint64_t manifest_file_size_;
 
+  /*
+   * 记录过期的文件 
+   */
   std::vector<ObsoleteFileInfo> obsolete_files_;
   std::vector<ObsoleteBlobFileInfo> obsolete_blob_files_;
   std::vector<std::string> obsolete_manifests_;
