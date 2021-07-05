@@ -35,7 +35,9 @@ BlobLogWriter::~BlobLogWriter() = default;
 
 Status BlobLogWriter::Sync() {
   TEST_SYNC_POINT("BlobLogWriter::Sync");
-
+  /*
+   * 所以，StopWatch是干嘛用的，运行机制是什么 
+   */
   StopWatch sync_sw(clock_, statistics_, BLOB_DB_BLOB_FILE_SYNC_MICROS);
   Status s = dest_->Sync(use_fsync_);
   RecordTick(statistics_, BLOB_DB_BLOB_FILE_SYNCED);
@@ -61,6 +63,18 @@ Status BlobLogWriter::WriteHeader(BlobLogHeader& header) {
   return s;
 }
 
+/*
+ * TODO:
+ * 1. checksum_method与checksum_value是传出参数，那么调用者获取这两个参数是干嘛用的
+ *    blobbuilder类在构建一个blob file时调用该函数，然后将获取到的checksum_method和checksum_value，
+ *    通过BlobFileAddition对象保存。然后, rocksdb会将checksum看成是blob文件的元信息，写入manifest.
+ *    走上面这个流程的意图是，rocksdb向用户新提供了VerifyFileChecksums和VerifyChecksum两个API，这两
+ *    个API用于在rocksdb运行时提供SST/blob文件校验。
+ * 
+ * 2. 接下来的问题是，checksum这块怎么移植
+ * 
+ * 3. WritableFileWriter实现的checksum函数
+ */
 Status BlobLogWriter::AppendFooter(BlobLogFooter& footer,
                                    std::string* checksum_method,
                                    std::string* checksum_value) {
