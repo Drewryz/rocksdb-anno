@@ -428,6 +428,9 @@ class VersionBuilder::Rep {
     return true;
   }
 
+  /*
+   * 将BlobFileAddition对象记录的blob文件的meta信息，写入Version中
+   */
   Status ApplyBlobFileAddition(const BlobFileAddition& blob_file_addition) {
     const uint64_t blob_file_number = blob_file_addition.GetBlobFileNumber();
 

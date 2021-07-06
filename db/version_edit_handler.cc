@@ -112,6 +112,10 @@ Status FileChecksumRetriever::ApplyVersionEdit(VersionEdit& edit,
   for (const auto& new_blob_file : edit.GetBlobFileAdditions()) {
     std::string checksum_value = new_blob_file.GetChecksumValue();
     std::string checksum_method = new_blob_file.GetChecksumMethod();
+    /*
+     * 这里有个问题，为什么从manifest读出的VersionEdit记录的checksum_method和checksum_value都为空？
+     * 难道在写入的时候也为空吗？ 
+     */
     assert(checksum_value.empty() == checksum_method.empty());
     if (checksum_method.empty()) {
       checksum_value = kUnknownFileChecksum;

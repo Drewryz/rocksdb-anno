@@ -430,9 +430,15 @@ Status MemTableList::TryInstallMemtableFlushResults(
   // Only a single thread can be executing this piece of code
   commit_in_progress_ = true;
 
+
   /*
-   * WTF，下面这个while逻辑十分复杂
-   * reading here. 2021-6-29-20:58
+   * 1. 获取当前cfd中所有的immutable
+   * 2. 当immutable被遍历完后，循环退出
+   * 3. 将immutable list分组，每一组immutable对应相同的SST文件，
+   *    每一组的version信息存入edit_list中
+   * 4. 调用LogAndApply
+   * 
+   * 这里用一个while循环的原因应该是有别的线程可能持续更新current_->memlist_
    */
   // Retry until all completed flushes are committed. New flushes can finish
   // while the current thread is writing manifest where mutex is released.
