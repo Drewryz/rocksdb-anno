@@ -343,6 +343,9 @@ Status BuildTable(
     s = iter->status();
   }
 
+  /*
+   * 上述构建过程出错，这里做清理工作
+   */
   if (!s.ok() || meta->fd.GetFileSize() == 0) {
     TEST_SYNC_POINT("BuildTable:BeforeDeleteFile");
 
