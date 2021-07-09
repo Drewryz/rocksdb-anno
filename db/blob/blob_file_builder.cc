@@ -287,10 +287,20 @@ Status BlobFileBuilder::CompressBlobIfNeeded(
     return Status::OK();
   }
 
+  /* 构建一个默认的CompressionOptions配置项 */
   CompressionOptions opts;
+  /* 空壳 */
   CompressionContext context(blob_compression_type_);
   constexpr uint64_t sample_for_compression = 0;
-
+  /*
+   * CompressionInfo就是一个封装compress信息的大杂烩类
+   * 包括：
+   * 1. 压缩配置信息，CompressionOptions& opts_
+   * 2. CompressionContext& context_
+   * 3. CompressionDict& dict_
+   * 4. CompressionType type_， 定义压缩类型，ZSTD, snappy, zip
+   * 5. uint64_t sample_for_compression_, 不知道这东西是啥
+   */
   CompressionInfo info(opts, context, CompressionDict::GetEmptyDict(),
                        blob_compression_type_, sample_for_compression);
 
