@@ -41,6 +41,7 @@ class BlobFileBuilderTest : public testing::Test {
  protected:
   BlobFileBuilderTest() : mock_env_(Env::Default()) {
     fs_ = mock_env_.GetFileSystem().get();
+    std::cout << "mark: " << fs_->Name() << std::endl;
     clock_ = mock_env_.GetSystemClock().get();
   }
 
@@ -62,6 +63,7 @@ class BlobFileBuilderTest : public testing::Test {
         new RandomAccessFileReader(std::move(file), blob_file_path, clock_));
 
     constexpr Statistics* statistics = nullptr;
+    // 所以BlobLogSequentialReader是用来做什么的？
     BlobLogSequentialReader blob_log_reader(std::move(file_reader), clock_,
                                             statistics);
 

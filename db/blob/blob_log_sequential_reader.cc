@@ -22,6 +22,10 @@ BlobLogSequentialReader::BlobLogSequentialReader(
 
 BlobLogSequentialReader::~BlobLogSequentialReader() = default;
 
+/*
+ * slice传出参数，读出的数据会传到这个参数中
+ * buf是传入参数，用于读取数据时充当buffer使用
+ */
 Status BlobLogSequentialReader::ReadSlice(uint64_t size, Slice* slice,
                                           char* buf) {
   assert(slice);
