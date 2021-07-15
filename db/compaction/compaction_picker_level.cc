@@ -10,6 +10,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "db/compaction/compaction_picker_level.h"
 #include "logging/log_buffer.h"
@@ -325,6 +326,15 @@ Compaction* LevelCompactionBuilder::PickCompaction() {
 }
 
 Compaction* LevelCompactionBuilder::GetCompaction() {
+  for (auto input : compaction_inputs_) {
+    std::cout << "level: " << input.level << std::endl;
+      for (auto file : input.files) {
+        // file->fd.GetNumber();
+        // file->fd.GetPathId();
+        // file->fd.GetFileSize();
+        std::cout << "number: " << file->fd.GetNumber() << " path_id: " << file->fd.GetPathId() << " file_size: " << file->fd.GetFileSize() << std::endl;
+      }
+  }
   auto c = new Compaction(
       vstorage_, ioptions_, mutable_cf_options_, mutable_db_options_,
       std::move(compaction_inputs_), output_level_,
@@ -352,6 +362,10 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
 }
 
 /*
+ * 整体说来，该函数的目的是将LSM树这种分层的数据放置到分层的cfpath中。
+ * 整体思想也很简单，根据LSM树每一层的size，从最顶层到最底层依次放入cfpath中。 
+ */
+/*
  * Find the optimal path to place a file
  * Given a level, finds the path where levels up to it will fit in levels
  * up to and including this path
@@ -359,15 +373,19 @@ Compaction* LevelCompactionBuilder::GetCompaction() {
 uint32_t LevelCompactionBuilder::GetPathId(
     const ImmutableCFOptions& ioptions,
     const MutableCFOptions& mutable_cf_options, int level) {
+  // p表示请求的level会落在哪个path上
   uint32_t p = 0;
   assert(!ioptions.cf_paths.empty());
 
+  // current_path_size表示当前path剩余的size
   // size remaining in the most recent path
   uint64_t current_path_size = ioptions.cf_paths[0].target_size;
 
   uint64_t level_size;
+  // cur_level表示当前迭代到了LSM树的哪一层
   int cur_level = 0;
 
+  // level_size表示LSM树每一层的最大size
   // max_bytes_for_level_base denotes L1 size.
   // We estimate L0 size to be the same as L1.
   level_size = mutable_cf_options.max_bytes_for_level_base;

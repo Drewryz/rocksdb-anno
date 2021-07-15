@@ -212,6 +212,20 @@ Status BlobFileBuilder::OpenBlobFileIfNeeded() {
 
   assert(immutable_cf_options_);
   assert(!immutable_cf_options_->cf_paths.empty());
+
+  /*
+   * blob文件放在了第一个cf数据路径。
+   * 
+   * 是一个DB所有的cf会共享同一个blob文件，还是一个cf的数据只对应一个blob文件？
+   * 一个cf的数据只对应一个blob文件，为啥呢, 因为你的blob文件是在compaction
+   * 或者flush生成的，因为一次compaction和flush操作只针对同一个cf的数据，所以
+   * 一个blob文件只对应一个cf的数据。
+   * 
+   * 澄清一下：
+   * 1. 既然cf数据也支持多路径，那么blob文件支持多路径也无可厚非
+   * 2. 另外的问题，因为cf的每个path都有一个size约束，那么如果将blob数据无脑往
+   *    第一个path写，这样会不会有问题。
+   */
   std::string blob_file_path = BlobFileName(
       immutable_cf_options_->cf_paths.front().path, blob_file_number);
 
