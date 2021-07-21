@@ -90,6 +90,10 @@ struct CompressionOptions {
   int level;
   int strategy;
 
+  /*
+   * 压缩字典: 用于启动压缩库的字典的最大大小。
+   * 当数据块之间存在重复时，启用字典可以提高压缩比。
+   */
   // Maximum size of dictionaries used to prime the compression library.
   // Enabling dictionary can improve compression ratios when there are
   // repetitions across data blocks.
