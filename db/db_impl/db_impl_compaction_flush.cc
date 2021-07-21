@@ -171,6 +171,9 @@ Status DBImpl::FlushMemTableToOutputFile(
       true /* sync_output_directory */, true /* write_manifest */, thread_pri,
       io_tracer_, db_id_, db_session_id_, cfd->GetFullHistoryTsLow(),
       &blob_callback_);
+  /*
+   * 记录了一个SST文件的元信息 
+   */
   FileMetaData file_meta;
 
 #ifndef ROCKSDB_LITE
