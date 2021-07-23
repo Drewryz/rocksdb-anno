@@ -128,6 +128,9 @@ bool VersionEdit::EncodeTo(std::string* dst) const {
                                 deleted.second /* file number */);
   }
 
+  /*
+   * new_files_记录了这个VersionEdit对象记录的所有SST文件 
+   */
   bool min_log_num_written = false;
   for (size_t i = 0; i < new_files_.size(); i++) {
     const FileMetaData& f = new_files_[i].second;
