@@ -69,6 +69,9 @@ enum Tag : uint32_t {
   kWalDeletion2,
 };
 
+/*
+ * 所以下面这些enum是用来做什么的？ 
+ */
 enum NewFileCustomTag : uint32_t {
   kTerminate = 1,  // The end of customized fields
   kNeedCompaction = 2,
@@ -488,6 +491,9 @@ class VersionEdit {
                              (entries == !wal_deletion_.IsEmpty()));
   }
 
+  /*
+   * 所以，一个VersionEdit对象可以包含多条版本改变的数据 
+   */
   // Number of edits
   size_t NumEntries() const {
     return new_files_.size() + deleted_files_.size() +
@@ -529,6 +535,9 @@ class VersionEdit {
     is_in_atomic_group_ = true;
     remaining_entries_ = remaining_entries;
   }
+  /*
+   * 所以这个函数不被外部引用，那么可以删除或者看看怎么搞？ 
+   */
   bool IsInAtomicGroup() const { return is_in_atomic_group_; }
   uint32_t GetRemainingEntries() const { return remaining_entries_; }
 
@@ -602,6 +611,9 @@ class VersionEdit {
   bool is_column_family_add_ = false;
   std::string column_family_name_;
 
+  /*
+   * atomic group指的是多个VersionEdit对象包含在一个group中，并且这个group要满足原子性
+   */
   bool is_in_atomic_group_ = false;
   uint32_t remaining_entries_ = 0;
 

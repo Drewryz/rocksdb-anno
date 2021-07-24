@@ -108,6 +108,9 @@ extern void DoGenerateLevelFilesBrief(LevelFilesBrief* file_level,
                                       const std::vector<FileMetaData*>& files,
                                       Arena* arena);
 
+/*
+ * Version与存储相关的信息。 
+ */
 // Information of the storage associated with each Version, including number of
 // levels of LSM tree, files information at each level, files marked for
 // compaction, blob files, etc.
@@ -309,6 +312,9 @@ class VersionStorageInfo {
     static FileLocation Invalid() { return FileLocation(); }
 
    private:
+    /*
+     * 这里level表示LSM树的层，position表示什么？ 
+     */
     int level_ = -1;
     size_t position_ = 0;
   };
@@ -523,6 +529,9 @@ class VersionStorageInfo {
 
   // A short brief metadata of files per level
   autovector<ROCKSDB_NAMESPACE::LevelFilesBrief> level_files_brief_;
+  /*
+   * ??? 
+   */
   FileIndexer file_indexer_;
   Arena arena_;  // Used to allocate space for file_levels_
 
@@ -532,14 +541,23 @@ class VersionStorageInfo {
   // in increasing order of keys
   std::vector<FileMetaData*>* files_;
 
+  /*
+   * key是SST文件的编号，value是文件在LSM树上的位置 
+   */
   // Map of all table files in version. Maps file number to (level, position on
   // level).
   using FileLocations = std::unordered_map<uint64_t, FileLocation>;
   FileLocations file_locations_;
 
+  /*
+   * key是blob文件的编号，value是Blob文件的信息 
+   */
   // Map of blob files in version by number.
   BlobFiles blob_files_;
 
+  /*
+   * ????
+   */
   // Level that L0 data should be compacted to. All levels < base_level_ should
   // be empty. -1 if it is not level-compaction so it's not applicable.
   int base_level_;
@@ -608,14 +626,14 @@ class VersionStorageInfo {
   int l0_delay_trigger_count_ = 0;  // Count used to trigger slow down and stop
                                     // for number of L0 files.
 
-  // the following are the sampled temporary stats.
-  // the current accumulated size of sampled files.
+  // The following are the sampled temporary stats.
+  // The current accumulated size of sampled files.
   uint64_t accumulated_file_size_;
-  // the current accumulated size of all raw keys based on the sampled files.
+  // The current accumulated size of all raw keys based on the sampled files.
   uint64_t accumulated_raw_key_size_;
-  // the current accumulated size of all raw keys based on the sampled files.
+  // The current accumulated size of all raw keys based on the sampled files.
   uint64_t accumulated_raw_value_size_;
-  // total number of non-deletion entries
+  // Total number of non-deletion entries
   uint64_t accumulated_num_non_deletions_;
   // total number of deletion entries
   uint64_t accumulated_num_deletions_;
@@ -637,8 +655,11 @@ class VersionStorageInfo {
 
   friend class Version;
   friend class VersionSet;
-};
+}; // end of VersionStorageInfo
 
+/*
+ * reading here. 2021-7-23-15:53 
+ */
 using MultiGetRange = MultiGetContext::Range;
 // A column family's version consists of the table and blob files owned by
 // the column family at a certain point in time.

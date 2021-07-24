@@ -254,7 +254,6 @@ Status FlushJob::Run(LogsWithPrepTracker* prep_tracker,
     s = Status::ShutdownInProgress("Database shutdown");
   }
 
-  /* reading here. 2021-6-29-15:46 */
   if (!s.ok()) {
     cfd_->imm()->RollbackMemtableFlush(mems_, meta_.fd.GetNumber());
   } else if (write_manifest_) { /* 通常来说write_manifest_为true */
@@ -544,6 +543,10 @@ Status FlushJob::WriteLevel0Table() {
       InternalStats::BYTES_FLUSHED,
       stats.bytes_written + stats.bytes_written_blob);
   RecordFlushIOStats();
+  /*
+   * 这里返回的状态信息，是buildtable返回的
+   * 所以如果buildtable出错，那么也会返回错误 
+   */
   return s;
 }
 

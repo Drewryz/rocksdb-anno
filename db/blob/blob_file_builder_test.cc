@@ -41,6 +41,7 @@ class BlobFileBuilderTest : public testing::Test {
  protected:
   BlobFileBuilderTest() : mock_env_(Env::Default()) {
     fs_ = mock_env_.GetFileSystem().get();
+    std::cout << "mark: " << fs_->Name() << std::endl;
     clock_ = mock_env_.GetSystemClock().get();
   }
 
@@ -62,6 +63,7 @@ class BlobFileBuilderTest : public testing::Test {
         new RandomAccessFileReader(std::move(file), blob_file_path, clock_));
 
     constexpr Statistics* statistics = nullptr;
+    // 所以BlobLogSequentialReader是用来做什么的？
     BlobLogSequentialReader blob_log_reader(std::move(file_reader), clock_,
                                             statistics);
 
@@ -122,6 +124,7 @@ TEST_F(BlobFileBuilderTest, BuildAndCheckOneFile) {
   constexpr size_t value_offset = 1234;
 
   Options options;
+  // TODO: 配置了cf path，这里的target size为0表示？
   options.cf_paths.emplace_back(
       test::PerThreadDBPath(&mock_env_,
                             "BlobFileBuilderTest_BuildAndCheckOneFile"),
@@ -152,6 +155,10 @@ TEST_F(BlobFileBuilderTest, BuildAndCheckOneFile) {
       number_of_blobs);
   std::vector<std::string> blob_indexes(number_of_blobs);
 
+  /*
+   * 将key和value写入blob文件，然后用expected_key_value记录
+   * key和value的值，用blob_index记录写入blob文件的index
+   */
   for (size_t i = 0; i < number_of_blobs; ++i) {
     auto& expected_key_value = expected_key_value_pairs[i];
 

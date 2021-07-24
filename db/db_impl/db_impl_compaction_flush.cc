@@ -7,6 +7,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #include <cinttypes>
+#include <iostream>
 
 #include "db/builder.h"
 #include "db/db_impl/db_impl.h"
@@ -170,6 +171,9 @@ Status DBImpl::FlushMemTableToOutputFile(
       true /* sync_output_directory */, true /* write_manifest */, thread_pri,
       io_tracer_, db_id_, db_session_id_, cfd->GetFullHistoryTsLow(),
       &blob_callback_);
+  /*
+   * 记录了一个SST文件的元信息 
+   */
   FileMetaData file_meta;
 
 #ifndef ROCKSDB_LITE
@@ -2451,6 +2455,7 @@ void DBImpl::BGWorkCompaction(void* arg) {
   delete reinterpret_cast<CompactionArg*>(arg);
   IOSTATS_SET_THREAD_POOL_ID(Env::Priority::LOW);
   TEST_SYNC_POINT("DBImpl::BGWorkCompaction");
+  std::cout << "In BGWorkCompaction" << std::endl;
   auto prepicked_compaction =
       static_cast<PrepickedCompaction*>(ca.prepicked_compaction);
   static_cast_with_check<DBImpl>(ca.db)->BackgroundCallCompaction(
