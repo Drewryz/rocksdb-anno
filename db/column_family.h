@@ -47,6 +47,9 @@ struct SuperVersionContext;
 class BlobFileCache;
 
 extern const double kIncSlowdownRatio;
+/*
+ * reading here. 2021-7-24-18:17
+ */
 // This file contains a list of data structures for managing column family
 // level metadata.
 //
@@ -540,9 +543,19 @@ class ColumnFamilyData {
 
   uint32_t id_;
   const std::string name_;
+  /*
+   * 记录当前列族Version的链表，由VersionSet::AppendVersion()完成建链
+   */
   Version* dummy_versions_;  // Head of circular doubly-linked list of versions.
+  /*
+   * 当前cf的Version对象，由VersionSet::AppendVersion()完成设置 
+   */
   Version* current_;         // == dummy_versions->prev_
 
+  /*
+   * reading here. 2021-7-24-22:34
+   * 接下来看Version
+   */
   std::atomic<int> refs_;      // outstanding references to ColumnFamilyData
   std::atomic<bool> initialized_;
   std::atomic<bool> dropped_;  // true if client dropped it

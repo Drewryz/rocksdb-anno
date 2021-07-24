@@ -555,6 +555,10 @@ ColumnFamilyData::ColumnFamilyData(
   // Convert user defined table properties collector factories to internal ones.
   GetIntTblPropCollectorFactory(ioptions_, &int_tbl_prop_collector_factories_);
 
+  /*
+   * 在构建ColumnFamilyData对象时，如果传入的_dummy_versions不为空，则表示要构建的
+   * 对象是非dummy的，所以要初始化下面一坨数据
+   */
   // if _dummy_versions is nullptr, then this is a dummy column family.
   if (_dummy_versions != nullptr) {
     internal_stats_.reset(
@@ -631,6 +635,11 @@ ColumnFamilyData::~ColumnFamilyData() {
   assert(!queued_for_compaction_);
   assert(super_version_ == nullptr);
 
+  /*
+   * 在析构一个ColumnFamilyData对象时，做防御编程。
+   * 从这个逻辑来看，当一个ColumnFamilyData对象被
+   * 析构之前，其引用的version链表应该也要被清空了。
+   */
   if (dummy_versions_ != nullptr) {
     // List must be empty
     assert(dummy_versions_->Next() == dummy_versions_);

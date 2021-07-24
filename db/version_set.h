@@ -850,6 +850,9 @@ class Version {
   uint64_t version_number_;
   std::shared_ptr<IOTracer> io_tracer_;
 
+  /*
+   * 构造函数，私有 
+   */
   Version(ColumnFamilyData* cfd, VersionSet* vset, const FileOptions& file_opt,
           MutableCFOptions mutable_cf_options,
           const std::shared_ptr<IOTracer>& io_tracer,
