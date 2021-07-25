@@ -22,6 +22,9 @@ struct Entry {
 
 class StaticMeta;
 
+/*
+ * 一个线程对应一个ThreadData对象
+ */
 // This is the structure that is declared as "thread_local" storage.
 // The vector keep list of atomic pointer for all instances for "current"
 // thread. The vector is indexed by an Id that is unique in process and

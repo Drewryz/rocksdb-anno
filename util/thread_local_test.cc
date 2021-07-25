@@ -65,6 +65,9 @@ TEST_F(ThreadLocalTest, UniqueIdTest) {
   port::Mutex mu;
   port::CondVar cv(&mu);
 
+  /*
+   * reading here. 2021-7-25-22:36
+   */
   uint32_t base_id = IDChecker::PeekId();
   // New ThreadLocal instance bumps id by 1
   {
