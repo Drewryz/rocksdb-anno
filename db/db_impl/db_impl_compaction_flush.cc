@@ -347,6 +347,9 @@ Status DBImpl::FlushMemTablesToOutputFiles(
   const auto& bg_flush_arg = bg_flush_args[0];
   ColumnFamilyData* cfd = bg_flush_arg.cfd_;
   MutableCFOptions mutable_cf_options = *cfd->GetLatestMutableCFOptions();
+  /*
+   * 此时，superversion_context持有一个内容为空的SuperVersion对象 
+   */
   SuperVersionContext* superversion_context =
       bg_flush_arg.superversion_context_;
   Status s = FlushMemTableToOutputFile(
@@ -2548,6 +2551,13 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
   std::vector<SuperVersionContext>& superversion_contexts =
       job_context->superversion_contexts;
   autovector<ColumnFamilyData*> column_families_not_to_flush;
+  /*
+   * 从队列中拿出一个flush请求，如果该请求不为空则退出循环
+   * 因为rocksdb支持atomic flush，对于atomic flush，一次
+   * flush请求需要刷写多个cf的memtable，所以如果开启了atomic
+   * flush, 一个flush请求会涉及到多个cf，所以就需要构建多个
+   * SuperVersionContext对象。
+   */
   while (!flush_queue_.empty()) {
     // This cfd is already referenced
     const FlushRequest& flush_req = PopFirstFromFlushQueue();
@@ -2568,7 +2578,7 @@ Status DBImpl::BackgroundFlush(bool* made_progress, JobContext* job_context,
     if (!bg_flush_args.empty()) {
       break;
     }
-  }
+  } // end of while
 
   if (!bg_flush_args.empty()) {
     auto bg_job_limits = GetBGJobLimits();

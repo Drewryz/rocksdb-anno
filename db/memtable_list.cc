@@ -432,8 +432,8 @@ Status MemTableList::TryInstallMemtableFlushResults(
 
 
   /*
-   * 1. 获取当前cfd中所有的immutable
-   * 2. 当immutable被遍历完后，循环退出
+   * 1. 遍历当前cfd中所有的immutable
+   * 2. 当被flush掉的immutable被遍历完后，循环退出
    * 3. 将immutable list分组，每一组immutable对应相同的SST文件，
    *    每一组的version信息存入edit_list中
    * 4. 调用LogAndApply
@@ -506,7 +506,7 @@ Status MemTableList::TryInstallMemtableFlushResults(
 #endif  // !ROCKSDB_LITE
       }
       batch_count++;
-    }
+    } // end for
 
     // TODO(myabandeh): Not sure how batch_count could be 0 here.
     if (batch_count > 0) {
@@ -547,7 +547,7 @@ Status MemTableList::TryInstallMemtableFlushResults(
                             manifest_write_cb);
       *io_s = vset->io_status();
     }
-  }
+  } // end of while
   commit_in_progress_ = false;
   return s;
 }

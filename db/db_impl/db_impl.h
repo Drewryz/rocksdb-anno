@@ -1665,6 +1665,11 @@ class DBImpl : public DB {
 
   void MaybeScheduleFlushOrCompaction();
 
+  /*
+   * FlushRequest记录的元素的第二个数据域用在atomic flush场景。该数据域记录了
+   * 一个cf的最大的需要刷写的memtable。另外，只有在atomic flush场景，
+   * FlushRequest才会由多个元素，否则元素的个数只为1.
+   */
   // A flush request specifies the column families to flush as well as the
   // largest memtable id to persist for each column family. Once all the
   // memtables whose IDs are smaller than or equal to this per-column-family
@@ -2047,6 +2052,10 @@ class DBImpl : public DB {
   // in MaybeScheduleFlushOrCompaction()
   // invariant(column family present in flush_queue_ <==>
   // ColumnFamilyData::pending_flush_ == true)
+  /*
+   * flush_queue_队列中不存在相同的cf。也就是说，对于通过一个cf来说，在任何一个时刻，队列中
+   * 只存在一个。参考SchedulePendingFlush函数。
+   */
   std::deque<FlushRequest> flush_queue_;
   // invariant(column family present in compaction_queue_ <==>
   // ColumnFamilyData::pending_compaction_ == true)

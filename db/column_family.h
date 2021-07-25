@@ -208,6 +208,9 @@ struct SuperVersion {
   Version* current;
   MutableCFOptions mutable_cf_options;
   // Version number of the current SuperVersion
+  /*
+   * 当前SuperVerson的编号 
+   */
   uint64_t version_number;
   WriteStallCondition write_stall_condition;
 

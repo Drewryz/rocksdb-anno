@@ -1267,6 +1267,10 @@ void ColumnFamilyData::InstallSuperVersion(
     SuperVersionContext* sv_context, InstrumentedMutex* db_mutex,
     const MutableCFOptions& mutable_cf_options) {
   SuperVersion* new_superversion = sv_context->new_superversion.release();
+  /*
+   * 既然cf本身就记录的有mem_ imm_ current_，那为什么还需要多次一举搞一个new_superversion
+   * 猜测是将这些封装起来便于传参之类的，应该是工程方面的考量
+   */
   new_superversion->db_mutex = db_mutex;
   new_superversion->mutable_cf_options = mutable_cf_options;
   new_superversion->Init(this, mem_, imm_.current(), current_);
@@ -1282,6 +1286,9 @@ void ColumnFamilyData::InstallSuperVersion(
     // This should be done before old_superversion->Unref(). That's to ensure
     // that local_sv_ never holds the last reference to SuperVersion, since
     // it has no means to safely do SuperVersion cleanup.
+    /*
+     * reading here. 2021-7-25-17:57
+     */
     ResetThreadLocalSuperVersions();
 
     if (old_superversion->mutable_cf_options.write_buffer_size !=
