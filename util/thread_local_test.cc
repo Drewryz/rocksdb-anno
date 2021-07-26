@@ -115,6 +115,7 @@ TEST_F(ThreadLocalTest, UniqueIdTest) {
 TEST_F(ThreadLocalTest, SequentialReadWriteTest) {
   // global id list carries over 3, 1, 2, 0
   uint32_t base_id = IDChecker::PeekId();
+  std::cout << "base_id: " << base_id << std::endl;
 
   port::Mutex mu;
   port::CondVar cv(&mu);
@@ -124,6 +125,7 @@ TEST_F(ThreadLocalTest, SequentialReadWriteTest) {
 
   ASSERT_GT(IDChecker::PeekId(), base_id);
   base_id = IDChecker::PeekId();
+  std::cout << "base_id: " << base_id << std::endl;
 
   auto func = [](void* ptr) {
     auto& params = *static_cast<Params*>(ptr);

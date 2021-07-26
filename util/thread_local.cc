@@ -11,6 +11,7 @@
 #include "util/mutexlock.h"
 #include "port/likely.h"
 #include <stdlib.h>
+#include <iostream>
 
 namespace ROCKSDB_NAMESPACE {
 
@@ -382,8 +383,19 @@ void ThreadLocalPtr::StaticMeta::RemoveThreadData(
   d->next = d->prev = d;
 }
 
+/*
+ * 这个函数用于获取每个线程的__thread类型的变量tls_，
+ * 每个线程有且只有一个tls_, 如果未被初始化，则将其
+ * 初始化为一个ThreadData对象的引用，否则直接返回。
+ * 
+ * 在将tls_初始化之后，还需要将tls_注册到pthread_key_t定义的pthread_key_上，
+ * 原因在于__thread变量无法自定义析构函数。如果我们希望__thread变量指向的变量，
+ * 在一个线程退出后可以被按照自定义析构行为，那么通过将__thread变量注册到
+ * pthread_key_上，就可以通过POSIX提供的thread-local变量完成析构。
+ */
 ThreadData* ThreadLocalPtr::StaticMeta::GetThreadLocal() {
 #ifndef ROCKSDB_SUPPORT_THREAD_LOCAL
+  std::cout << "mark1" << std::endl;
   // Make this local variable name look like a member variable so that we
   // can share all the code below
   ThreadData* tls_ =
@@ -399,6 +411,10 @@ ThreadData* ThreadLocalPtr::StaticMeta::GetThreadLocal() {
       MutexLock l(Mutex());
       inst->AddThreadData(tls_);
     }
+
+    /*
+     * 这里将tls_注册到pthread_key_的原因是为了自定义tls_的析构行为。 
+     */
     // Even it is not OS_MACOSX, need to register value for pthread_key_ so that
     // its exit handler will be triggered.
     if (pthread_setspecific(inst->pthread_key_, tls_) != 0) {
@@ -415,6 +431,7 @@ ThreadData* ThreadLocalPtr::StaticMeta::GetThreadLocal() {
 
 void* ThreadLocalPtr::StaticMeta::Get(uint32_t id) const {
   auto* tls = GetThreadLocal();
+  std::cout << "entry size: " << tls->entries.size() << std::endl;
   if (UNLIKELY(id >= tls->entries.size())) {
     return nullptr;
   }
@@ -522,8 +539,7 @@ uint32_t ThreadLocalPtr::StaticMeta::PeekId() const {
  * 2. 将要被析构这个ThreadLoclPtr对象对应的slot槽位置为null，并调用对应的析构函数
  * 
  * TODO：
- * 1. 最底层是怎么实现的
- * 2. ThreadData为什么不用hashmap
+ * 1. ThreadData是怎么串起来的
  */
 void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {
   // This id is not used, go through all thread local data and release
@@ -559,14 +575,23 @@ ThreadLocalPtr::~ThreadLocalPtr() {
   Instance()->ReclaimId(id_);
 }
 
+/*
+ * 获取当前线程记录的值
+ */
 void* ThreadLocalPtr::Get() const {
   return Instance()->Get(id_);
 }
 
+/*
+ * 用ptr重置当前线程记录的值 
+ */
 void ThreadLocalPtr::Reset(void* ptr) {
   Instance()->Reset(id_, ptr);
 }
 
+/*
+ * swap记录的值 
+ */
 void* ThreadLocalPtr::Swap(void* ptr) {
   return Instance()->Swap(id_, ptr);
 }
@@ -575,6 +600,9 @@ bool ThreadLocalPtr::CompareAndSwap(void* ptr, void*& expected) {
   return Instance()->CompareAndSwap(id_, ptr, expected);
 }
 
+/*
+ * 将当前ThreadLocalPtr相关的所有线程的值改成replacement，并返回旧值 
+ */
 void ThreadLocalPtr::Scrape(autovector<void*>* ptrs, void* const replacement) {
   Instance()->Scrape(id_, ptrs, replacement);
 }
