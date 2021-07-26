@@ -128,9 +128,16 @@ private:
 
   static ThreadData* GetThreadLocal();
 
+  /*
+   * 每次获取ID时，该数据域会自增 
+   */
   uint32_t next_instance_id_;
   // Used to recycle Ids in case ThreadLocalPtr is instantiated and destroyed
   // frequently. This also prevents it from blowing up the vector space.
+  /*
+   * 当一个ThreadLocalPtr对象被析构时，会将该ThreadLocalPtr对象的id回收，
+   * free_instance_ids_就是用于存储回收的id的 
+   */
   autovector<uint32_t> free_instance_ids_;
   // Chain all thread local structure together. This is necessary since
   // when one ThreadLocalPtr gets destroyed, we need to loop over each
@@ -248,6 +255,9 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD dwReason, PVOID pv) {
 
 void ThreadLocalPtr::InitSingletons() { ThreadLocalPtr::Instance(); }
 
+/*
+ * 单例模式。所有经过Instance函数获取的StaticMeta对象，都是相同的 
+ */
 ThreadLocalPtr::StaticMeta* ThreadLocalPtr::Instance() {
   // Here we prefer function static variable instead of global
   // static variable as function static variable is initialized
@@ -308,6 +318,10 @@ void ThreadLocalPtr::StaticMeta::OnThreadExit(void* ptr) {
   delete tls;
 }
 
+/*
+ * StaticMeta的构造函数。
+ * reading here. 2021-7-26-11:59
+ */
 ThreadLocalPtr::StaticMeta::StaticMeta()
   : next_instance_id_(0),
     head_(this),
@@ -502,6 +516,15 @@ uint32_t ThreadLocalPtr::StaticMeta::PeekId() const {
   return next_instance_id_;
 }
 
+/*
+ * ThreadLocalPtr析构时调用。主要做了下面几个事情：
+ * 1. 将要被析构这个ThreadLoclPtr对象的id回收
+ * 2. 将要被析构这个ThreadLoclPtr对象对应的slot槽位置为null，并调用对应的析构函数
+ * 
+ * TODO：
+ * 1. 最底层是怎么实现的
+ * 2. ThreadData为什么不用hashmap
+ */
 void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {
   // This id is not used, go through all thread local data and release
   // corresponding value
@@ -519,6 +542,12 @@ void ThreadLocalPtr::StaticMeta::ReclaimId(uint32_t id) {
   free_instance_ids_.push_back(id);
 }
 
+/*
+ * RocksDB的ThreadLocal机制实现，支持ThreadLocal变量析构时，
+ * 执行用户指定的回调函数。
+ * handler就是用户指定的回调函数，该函数在ThreadLocalPtr被
+ * 析构时执行。
+ */
 ThreadLocalPtr::ThreadLocalPtr(UnrefHandler handler)
     : id_(Instance()->GetId()) {
   if (handler != nullptr) {

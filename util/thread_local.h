@@ -95,6 +95,10 @@ private:
 
   static StaticMeta* Instance();
 
+  /*
+   * 所有的ThreadLocalPtr对象指向同一个StaticMeta对象，
+   * 但是不同的ThreadLocalPtr对象，id_是不同的。 
+   */
   const uint32_t id_;
 };
 
