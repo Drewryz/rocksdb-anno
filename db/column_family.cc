@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "db/blob/blob_file_cache.h"
 #include "db/compaction/compaction_picker.h"
@@ -1177,7 +1178,13 @@ Compaction* ColumnFamilyData::CompactRange(
   return result;
 }
 
+/*
+ * 该函数用于获取cf的SuperVersion，主要两步：
+ * 1. 通过GetThreadLocalSuperVersion获取sv
+ * 2. 通过ReturnThreadLocalSuperVersion更新sv
+ */
 SuperVersion* ColumnFamilyData::GetReferencedSuperVersion(DBImpl* db) {
+  std::cout << "yzr yzr" << std::endl;
   SuperVersion* sv = GetThreadLocalSuperVersion(db);
   sv->Ref();
   if (!ReturnThreadLocalSuperVersion(sv)) {
@@ -1190,6 +1197,20 @@ SuperVersion* ColumnFamilyData::GetReferencedSuperVersion(DBImpl* db) {
   return sv;
 }
 
+// reader的一个调用栈
+// #0  rocksdb::ColumnFamilyData::GetThreadLocalSuperVersion (this=0x66cfa0, db=0x655d50) at /root/code/rocksdb/db/column_family.cc:1215
+// #1  0x00007ffff6f1a46f in rocksdb::DBImpl::GetAndRefSuperVersion (this=0x655d50, cfd=0x66cfa0) at /root/code/rocksdb/db/db_impl/db_impl.cc:3328
+// #2  0x00007ffff6f12f30 in rocksdb::DBImpl::GetImpl (this=0x655d50, read_options=..., key=..., get_impl_options=...) at /root/code/rocksdb/db/db_impl/db_impl.cc:1680
+// #3  0x00007ffff6f12b41 in rocksdb::DBImpl::Get (this=0x655d50, read_options=..., column_family=0x674410, key=..., value=0x7fffffffd490, timestamp=0x0) at /root/code/rocksdb/db/db_impl/db_impl.cc:1626
+// #4  0x00007ffff6f12a8c in rocksdb::DBImpl::Get (this=0x655d50, read_options=..., column_family=0x674410, key=..., value=0x7fffffffd490) at /root/code/rocksdb/db/db_impl/db_impl.cc:1616
+// #5  0x00007ffff6f04c16 in rocksdb::DB::Get (this=0x655d50, options=..., column_family=0x674410, key=..., value=0x7fffffffd560) at /root/code/rocksdb/include/rocksdb/db.h:416
+// #6  0x00007ffff6f04d2d in rocksdb::DB::Get (this=0x655d50, options=..., key=..., value=0x7fffffffd560) at /root/code/rocksdb/include/rocksdb/db.h:427
+// #7  0x0000000000405b96 in main () at read_write_test.cc:27
+/*
+ * 该函数主要目的是获取当前cf的SuperVersion。
+ * 先从tls中获取缓冲的sv，如果获取到的sv已经过期了，退化成加锁获取。
+ * 注意从tls中获取缓冲sv时，还要将tls置为kSVInUse，以便告知writer。
+ */
 SuperVersion* ColumnFamilyData::GetThreadLocalSuperVersion(DBImpl* db) {
   // The SuperVersion is cached in thread local storage to avoid acquiring
   // mutex when SuperVersion does not change since the last use. When a new
@@ -1210,6 +1231,9 @@ SuperVersion* ColumnFamilyData::GetThreadLocalSuperVersion(DBImpl* db) {
   // (if no Scrape happens).
   assert(ptr != SuperVersion::kSVInUse);
   SuperVersion* sv = static_cast<SuperVersion*>(ptr);
+  /*
+   * 获取到的sv过期了，此时做一些清理工作，并退化成加锁获取
+   */
   if (sv == SuperVersion::kSVObsolete ||
       sv->version_number != super_version_number_.load()) {
     RecordTick(ioptions_.statistics, NUMBER_SUPERVERSION_ACQUIRES);
@@ -1239,6 +1263,9 @@ SuperVersion* ColumnFamilyData::GetThreadLocalSuperVersion(DBImpl* db) {
   return sv;
 }
 
+/*
+ * 该函数被reader调用，因为之前在获取tls变量时候，将其置为了kSVInUse，所以现在要归还缓冲的信息。 
+ */
 bool ColumnFamilyData::ReturnThreadLocalSuperVersion(SuperVersion* sv) {
   assert(sv != nullptr);
   // Put the SuperVersion back
@@ -1263,14 +1290,15 @@ void ColumnFamilyData::InstallSuperVersion(
   return InstallSuperVersion(sv_context, db_mutex, mutable_cf_options_);
 }
 
+/*
+ * reading here. 2021-7-27-16:13
+ * TODO:
+ * 1. 梳理superversion，install和读取的过程 
+ */
 void ColumnFamilyData::InstallSuperVersion(
     SuperVersionContext* sv_context, InstrumentedMutex* db_mutex,
     const MutableCFOptions& mutable_cf_options) {
   SuperVersion* new_superversion = sv_context->new_superversion.release();
-  /*
-   * 既然cf本身就记录的有mem_ imm_ current_，那为什么还需要多次一举搞一个new_superversion
-   * 猜测是将这些封装起来便于传参之类的，应该是工程方面的考量
-   */
   new_superversion->db_mutex = db_mutex;
   new_superversion->mutable_cf_options = mutable_cf_options;
   new_superversion->Init(this, mem_, imm_.current(), current_);
