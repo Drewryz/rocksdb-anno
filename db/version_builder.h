@@ -37,7 +37,13 @@ class VersionBuilder {
   ~VersionBuilder();
 
   bool CheckConsistencyForNumLevels();
+  /*
+   * 接收一个VersionEdit,将其apply到base storage中 
+   */
   Status Apply(VersionEdit* edit);
+  /*
+   * 将VersionBuilder当前持有的Version信息持久化到vstorage中 
+   */
   Status SaveTo(VersionStorageInfo* vstorage);
   Status LoadTableHandlers(InternalStats* internal_stats, int max_threads,
                            bool prefetch_index_and_filter_in_cache,
@@ -46,6 +52,9 @@ class VersionBuilder {
                            size_t max_file_size_for_l0_meta_pin);
 
  private:
+  /*
+   * 核心逻辑在这个私有内部类中 
+   */
   class Rep;
   std::unique_ptr<Rep> rep_;
 };

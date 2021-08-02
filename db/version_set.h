@@ -313,7 +313,7 @@ class VersionStorageInfo {
 
    private:
     /*
-     * 这里level表示LSM树的层，position表示什么？ 
+     * 这里level表示LSM树的层，position表示VersionStaorgeInfo::files_[level]的vector的index 
      */
     int level_ = -1;
     size_t position_ = 0;
@@ -347,6 +347,9 @@ class VersionStorageInfo {
     return files_[location.GetLevel()][location.GetPosition()];
   }
 
+  /*
+   * BlobFiles是一个map结构，里面的kv对，是按照key排序的
+   */
   // REQUIRES: This version has been saved (see VersionSet::SaveTo)
   using BlobFiles = std::map<uint64_t, std::shared_ptr<BlobFileMetaData>>;
   const BlobFiles& GetBlobFiles() const { return blob_files_; }
@@ -537,6 +540,12 @@ class VersionStorageInfo {
 
   CompactionStyle compaction_style_;
 
+  /*
+   * files[0]--第0层的SST文件：l01 l02 l03
+   * files[1]--第1层的SST文件: l11 l12 l13 l14 l15
+   * ... ... 
+   * 注意每一层的SST是排好序的，参见version_builder::SaveTo函数
+   */
   // List of files per level, files in each level are arranged
   // in increasing order of keys
   std::vector<FileMetaData*>* files_;

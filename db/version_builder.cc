@@ -171,6 +171,12 @@ class VersionBuilder::Rep {
   TableCache* table_cache_;
   VersionStorageInfo* base_vstorage_;
   VersionSet* version_set_;
+  /*
+   * 这个表示什么?
+   * levels_这个数组的长度是num_levels
+   * version_builder的num_levels继承自base StorageInfo的num_levels，表示当前版本的LSM树最多有多少层
+   * levels_这个数组的每一个元素是LevelState，表示这一层新增的SST和删除的SST
+   */
   int num_levels_;
   LevelState* levels_;
   // Store sizes of levels larger than num_levels_. We do this instead of
@@ -278,6 +284,7 @@ class VersionBuilder::Rep {
     // mapping stored in the BlobFileMetaData objects.
     ExpectedLinkedSsts expected_linked_ssts;
 
+    // 遍历每一层
     for (int level = 0; level < num_levels_; level++) {
       auto& level_files = vstorage->LevelFiles(level);
 
@@ -289,6 +296,7 @@ class VersionBuilder::Rep {
       UpdateExpectedLinkedSsts(level_files[0]->fd.GetNumber(),
                                level_files[0]->oldest_blob_file_number,
                                &expected_linked_ssts);
+      // 层内遍历
       for (size_t i = 1; i < level_files.size(); i++) {
         assert(level_files[i]);
         UpdateExpectedLinkedSsts(level_files[i]->fd.GetNumber(),
@@ -354,7 +362,7 @@ class VersionBuilder::Rep {
           }
         }
       }
-    }
+    } // end of for
 
     // Make sure that all blob files in the version have non-garbage data.
     const auto& blob_files = vstorage->GetBlobFiles();
@@ -388,6 +396,9 @@ class VersionBuilder::Rep {
     return ret_s;
   }
 
+  /*
+   * reading here. 2021-7-28-17:43 
+   */
   Status CheckConsistency(VersionStorageInfo* vstorage) {
     // Always run consistency checks in debug build
 #ifdef NDEBUG
@@ -541,14 +552,18 @@ class VersionBuilder::Rep {
       }
 
       return Status::Corruption("VersionBuilder", oss.str());
+    } else {
+      table_file_levels_[file_number] =
+          VersionStorageInfo::FileLocation::Invalid().GetLevel();
     }
 
     if (level >= num_levels_) {
+      /*
+       * 这里删除的SST的level大于num_levels_，那一定是由于之前ApplyFileAddition加入的，
+       * 所以invalid_level_sizes_[level]一定大于0
+       */
       assert(invalid_level_sizes_[level] > 0);
       --invalid_level_sizes_[level];
-
-      table_file_levels_[file_number] =
-          VersionStorageInfo::FileLocation::Invalid().GetLevel();
 
       return Status::OK();
     }
@@ -574,9 +589,6 @@ class VersionBuilder::Rep {
     assert(del_files.find(file_number) == del_files.end());
     del_files.emplace(file_number);
 
-    table_file_levels_[file_number] =
-        VersionStorageInfo::FileLocation::Invalid().GetLevel();
-
     return Status::OK();
   }
 
@@ -587,6 +599,9 @@ class VersionBuilder::Rep {
 
     const int current_level = GetCurrentLevelForTableFile(file_number);
 
+    /*
+     * 我们在当前的Version信息中，找到了要加入的SST文件 
+     */
     if (current_level !=
         VersionStorageInfo::FileLocation::Invalid().GetLevel()) {
       if (level >= num_levels_) {
@@ -597,15 +612,21 @@ class VersionBuilder::Rep {
       oss << "Cannot add table file #" << file_number << " to level " << level
           << " since it is already in the LSM tree on level " << current_level;
       return Status::Corruption("VersionBuilder", oss.str());
+    } else {
+      table_file_levels_[file_number] = level;
     }
 
+    /*
+     * 正确的情况level就不应该超过num_levels_
+     */
     if (level >= num_levels_) {
       ++invalid_level_sizes_[level];
-      table_file_levels_[file_number] = level;
-
       return Status::OK();
     }
 
+    /*
+     * 存储 
+     */
     auto& level_state = levels_[level];
 
     auto& del_files = level_state.deleted_files;
@@ -627,8 +648,6 @@ class VersionBuilder::Rep {
         IsBlobFileInVersion(blob_file_number)) {
       blob_file_meta_deltas_[blob_file_number].LinkSst(file_number);
     }
-
-    table_file_levels_[file_number] = level;
 
     return Status::OK();
   }
@@ -713,6 +732,9 @@ class VersionBuilder::Rep {
     auto shared_meta = delta.GetSharedMeta();
     assert(shared_meta);
 
+    /*
+     * 因为是新的blob文件所以unlink一定是空
+     */
     assert(delta.GetNewlyUnlinkedSsts().empty());
 
     auto meta = BlobFileMetaData::Create(
@@ -760,6 +782,11 @@ class VersionBuilder::Rep {
     assert(meta);
     assert(found_first_non_empty);
 
+    /*
+     * 有效性检查，满足下面任意两个条件无效
+     * 1. 如果blob文件没有链接到别的SST文件
+     * 2. 如果blob文件全是垃圾值
+     */
     if (!meta->GetLinkedSsts().empty()) {
       (*found_first_non_empty) = true;
     } else if (!(*found_first_non_empty) ||
@@ -788,7 +815,9 @@ class VersionBuilder::Rep {
     while (base_it != base_it_end && delta_it != delta_it_end) {
       const uint64_t base_blob_file_number = base_it->first;
       const uint64_t delta_blob_file_number = delta_it->first;
-
+      /*
+       * reading here. 2021-7-29-17:22 
+       */
       if (base_blob_file_number < delta_blob_file_number) {
         const auto& base_meta = base_it->second;
 
@@ -798,12 +827,16 @@ class VersionBuilder::Rep {
       } else if (delta_blob_file_number < base_blob_file_number) {
         const auto& delta = delta_it->second;
 
+        /* TODO !!! */
         auto meta = CreateMetaDataForNewBlobFile(delta);
 
         AddBlobFileIfNeeded(vstorage, meta, &found_first_non_empty);
 
         ++delta_it;
       } else {
+        /*
+         * 如果两个blob file的number相同，那么将其merge在一起 
+         */
         assert(base_blob_file_number == delta_blob_file_number);
 
         const auto& base_meta = base_it->second;
