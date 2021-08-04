@@ -32,7 +32,7 @@ int main() {
     status = db->Get(rocksdb::ReadOptions(), key, &value);
     assert(status.ok());
     
-    std::string checkpoint_dir = "./blobdb_test_ck";
+    std::string checkpoint_dir = "blobdb_test_ck";
     rocksdb::Checkpoint* checkpoint;
     rocksdb::Checkpoint::Create(db, &checkpoint);
     checkpoint->CreateCheckpoint(checkpoint_dir);

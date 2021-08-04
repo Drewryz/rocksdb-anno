@@ -16,6 +16,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <iostream>
 
 #include "db/wal_manager.h"
 #include "file/file_util.h"
@@ -91,7 +92,7 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
       db_options.info_log,
       "Started the snapshot process -- creating snapshot in directory %s",
       checkpoint_dir.c_str());
-
+  std::cout << "mark1: " << checkpoint_dir << std::endl;
   size_t final_nonslash_idx = checkpoint_dir.find_last_not_of('/');
   if (final_nonslash_idx == std::string::npos) {
     // npos means it's only slashes or empty. Non-empty means it's the root
@@ -181,6 +182,22 @@ Status CheckpointImpl::CreateCheckpoint(const std::string& checkpoint_dir,
   return s;
 }
 
+/*
+ * 该函数用于执行checkpoint逻辑，步骤如下：
+ * 1. 获取当前数据库系统的文件列表: SST+blob+min_log_num+rocksdb自身元数据文件
+ * 2. 遍历获取的文件列表(不包括WAL文件, WAL文件最后处理)：
+ *    a. 如果是CURRENT文件，将其名字记录下来，不作任何操作。
+ *       因为CURRENT的内容随时可能发生变化，我们需要解析到MANIFEST文件的名字以后，将其写到CURRENT文件
+ *    b. 如果是MANIFEST(kDescriptorFile), 将其名字记录下来，并拷贝到dest目录
+ *    c. 如果是Options文件，将其拷贝到dest目录
+ *    d. 如果是数据文件(SST/blob), 将其加入到一个列表，根据是否可以硬连接做复制或者链接
+ * 3. 拷贝/链接数据文件
+ * 4. 解析MANIFEST文件的名字，将其写到CURRENT文件
+ * 5. 复制WAL文件
+ * 
+ * TODO:
+ * 1. 获取文件列表的时候一定有blob，所以这块要适配，那么确定边界
+ */
 Status CheckpointImpl::CreateCustomCheckpoint(
     const DBOptions& db_options,
     std::function<Status(const std::string& src_dirname,
@@ -204,8 +221,15 @@ Status CheckpointImpl::CreateCustomCheckpoint(
   bool same_fs = true;
   VectorLogPtr live_wal_files;
 
+  /*
+   * 如果开启了2pc，那么一定要刷memtable，原因未知
+   * 如果没有开启2pc，那么是否要刷memtable，要视情况而定
+   */
   bool flush_memtable = true;
   if (!db_options.allow_2pc) {
+    /*
+     * 以下，刷不刷memtable主要决定了checkpoint的数据的新旧程度 
+     */
     if (log_size_for_flush == port::kMaxUint64) {
       flush_memtable = false;
     } else if (log_size_for_flush > 0) {
@@ -230,6 +254,7 @@ Status CheckpointImpl::CreateCustomCheckpoint(
     }
   }
 
+  /* 获取到的文件，不止包括数据文件，还包括rocksdb其他文件 */
   // this will return live_files prefixed with "/"
   s = db_->GetLiveFiles(live_files, &manifest_file_size, flush_memtable);
 
@@ -247,6 +272,20 @@ Status CheckpointImpl::CreateCustomCheckpoint(
   // Ideally, min_log_num should be got together with manifest_file_size in
   // GetLiveFiles atomically. But that needs changes to GetLiveFiles' signature
   // which is a public API.
+  /*
+   * 这一步得到的live_files含有的SST并不能保证数据库处于一致状态，
+   * 比如一个flush操作需要刷写多个cf，如果GetLiveFile的时候只刷
+   * 写了一个cf，那么这时候数据的状态没有处于一致。所以，还需要拿到
+   * WAL日志进行恢复。
+   * 
+   * 我们整体的目标是WAL的范围一定要与SST数据的范围有重合。所以先GetLiveFiles,
+   * 再去拿min_log_num，此时WAL与SST之间会有脱节，这样不能保证正确性。
+   * 
+   * 先拿min_log_num，再去GetLiveFiles，这样可以保证正确性，但是这种方式不够好，
+   * 因为如果GetLiveFiles的时候进行了flush操作，那么先获取的min_log_num和当前
+   * 的min_log_num就差距太大了，这会导致复制很多不需要的WAL文件，并且造成recover
+   * 的时间过长。
+   */
   s = db_->GetLiveFiles(live_files, &manifest_file_size, flush_memtable);
   TEST_SYNC_POINT("CheckpointImpl::CreateCheckpoint:FlushDone");
 
@@ -260,6 +299,7 @@ Status CheckpointImpl::CreateCustomCheckpoint(
   TEST_SYNC_POINT("CheckpointImpl::CreateCustomCheckpoint:AfterGetLive1");
   TEST_SYNC_POINT("CheckpointImpl::CreateCustomCheckpoint:AfterGetLive2");
 
+  /* 果然和我想的一样，如果没有多个cf，rocksdb的checkpoint根本不需要wal的参与 */
   // if we have more than one column family, we need to also get WAL files
   if (s.ok()) {
     s = db_->GetSortedWalFiles(live_wal_files);
@@ -270,6 +310,14 @@ Status CheckpointImpl::CreateCustomCheckpoint(
 
   size_t wal_size = live_wal_files.size();
 
+  /*
+   * 遍历获取的文件列表(不包括WAL文件, WAL文件最后处理)：
+   * 1. 如果是CURRENT文件，将其名字记录下来，不作任何操作。
+   *    因为CURRENT的内容随时可能发生变化，我们需要解析到MANIFEST文件的名字以后，将其写到CURRENT文件
+   * 2. 如果是MANIFEST(kDescriptorFile), 将其名字记录下来，并拷贝到dest目录
+   * 3. 如果是Options文件，将其拷贝到dest目录
+   * 4. 如果是数据文件(SST/blob), 将其加入到一个列表，根据是否可以硬连接做复制或者链接
+   */
   // process live files, non-table, non-blob files first
   std::string manifest_fname, current_fname;
   // record table and blob files for processing next
@@ -325,6 +373,9 @@ Status CheckpointImpl::CreateCustomCheckpoint(
                                      manifest_file_size, checksum_list.get());
   }
 
+  /*
+   * 拷贝/链接数据文件 
+   */
   // copy/hard link live table and blob files
   for (const auto& file : live_table_and_blob_files) {
     if (!s.ok()) {
@@ -368,6 +419,10 @@ Status CheckpointImpl::CreateCustomCheckpoint(
                        checksum_value);
     }
   }
+
+  /*
+   * 解析MANIFEST文件的名字，将其写到CURRENT文件
+   */
   if (s.ok() && !current_fname.empty() && !manifest_fname.empty()) {
     s = create_file_cb(current_fname, manifest_fname.substr(1) + "\n",
                        kCurrentFile);
@@ -375,6 +430,10 @@ Status CheckpointImpl::CreateCustomCheckpoint(
   ROCKS_LOG_INFO(db_options.info_log, "Number of log files %" ROCKSDB_PRIszt,
                  live_wal_files.size());
 
+
+  /*
+   * 复制WAL文件 
+   */
   // Link WAL files. Copy exact size of last one because it is the only one
   // that has changes after the last flush.
   for (size_t i = 0; s.ok() && i < wal_size; ++i) {
