@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
 #include "db/version_edit.h"
+#include <iostream>
 
 #include "db/blob/blob_index.h"
 #include "db/version_set.h"
@@ -365,6 +366,7 @@ const char* VersionEdit::DecodeNewFile4From(Slice* input) {
           if (!GetVarint64(&field, &f.oldest_blob_file_number)) {
             return "invalid oldest blob file number";
           }
+          std::cout << "In VersonEdit Decode, oldest_blob_file_number: " << f.oldest_blob_file_number << std::endl;
           break;
         default:
           if ((custom_tag & kCustomTagNonSafeIgnoreMask) != 0) {
@@ -497,6 +499,7 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       }
 
       case kNewFile: {
+        std::cout << "In kNewFile" << std::endl;
         uint64_t number = 0;
         uint64_t file_size = 0;
         if (GetLevel(&input, &level, &msg) && GetVarint64(&input, &number) &&
@@ -513,6 +516,7 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
         break;
       }
       case kNewFile2: {
+                std::cout << "In kNewFile2" << std::endl;
         uint64_t number = 0;
         uint64_t file_size = 0;
         SequenceNumber smallest_seqno = 0;
@@ -535,6 +539,8 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       }
 
       case kNewFile3: {
+                        std::cout << "In kNewFile3" << std::endl;
+
         uint64_t number = 0;
         uint32_t path_id = 0;
         uint64_t file_size = 0;
@@ -558,6 +564,8 @@ Status VersionEdit::DecodeFrom(const Slice& src) {
       }
 
       case kNewFile4: {
+                        std::cout << "In kNewFile4" << std::endl;
+
         msg = DecodeNewFile4From(&input);
         break;
       }

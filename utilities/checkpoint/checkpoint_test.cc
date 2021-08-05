@@ -357,6 +357,7 @@ TEST_F(CheckpointTest, CheckpointWithBlob) {
   // Make sure the checkpoint can be opened and the blob value read
   options.create_if_missing = false;
   DB* checkpoint_db = nullptr;
+  std::cout << "Before Open Checkpoint" << std::endl;
   ASSERT_OK(DB::Open(options, snapshot_name_, &checkpoint_db));
 
   std::unique_ptr<DB> checkpoint_db_guard(checkpoint_db);

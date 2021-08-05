@@ -19,6 +19,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
 
 #include "compaction/compaction.h"
 #include "db/blob/blob_file_cache.h"
@@ -2809,6 +2810,7 @@ void VersionStorageInfo::AddFile(int level, FileMetaData* f) {
 
 void VersionStorageInfo::AddBlobFile(
     std::shared_ptr<BlobFileMetaData> blob_file_meta) {
+  std::cout << "In AddBlobFile, Blob File Number: " << blob_file_meta->GetBlobFileNumber() << std::endl;
   assert(blob_file_meta);
 
   const uint64_t blob_file_number = blob_file_meta->GetBlobFileNumber();
@@ -5876,3 +5878,39 @@ std::vector<VersionEdit>& ReactiveVersionSet::replay_buffer() {
 }
 
 }  // namespace ROCKSDB_NAMESPACE
+
+
+// recover调用AddBlobFile的调用栈:
+// #0  rocksdb::VersionStorageInfo::AddBlobFile (this=0x78cfd0, blob_file_meta=...) at /root/code/rocksdb/db/version_set.cc:2813
+// #1  0x00007ffff707e48c in rocksdb::VersionBuilder::Rep::AddBlobFileIfNeeded (this=0x7657c0, vstorage=0x78cfd0, meta=..., found_first_non_empty=0x7fffffffa6c7) at /root/code/rocksdb/db/version_builder.cc:797
+// #2  0x00007ffff707e83a in rocksdb::VersionBuilder::Rep::SaveBlobFilesTo (this=0x7657c0, vstorage=0x78cfd0) at /root/code/rocksdb/db/version_builder.cc:867
+// #3  0x00007ffff707edf7 in rocksdb::VersionBuilder::Rep::SaveTo (this=0x7657c0, vstorage=0x78cfd0) at /root/code/rocksdb/db/version_builder.cc:927
+// #4  0x00007ffff7078d2a in rocksdb::VersionBuilder::SaveTo (this=0x7657a0, vstorage=0x78cfd0) at /root/code/rocksdb/db/version_builder.cc:1078
+// #5  0x00007ffff7096451 in rocksdb::VersionEditHandler::MaybeCreateVersion (this=0x7fffffffb0a0, cfd=0x75ff90, force_create_version=true) at /root/code/rocksdb/db/version_edit_handler.cc:479
+// #6  0x00007ffff7095ba8 in rocksdb::VersionEditHandler::CheckIterationResult (this=0x7fffffffb0a0, reader=..., s=0x7fffffffaf30) at /root/code/rocksdb/db/version_edit_handler.cc:413
+// #7  0x00007ffff7093822 in rocksdb::VersionEditHandlerBase::Iterate (this=0x7fffffffb0a0, reader=..., log_read_status=0x7fffffffb330) at /root/code/rocksdb/db/version_edit_handler.cc:65
+// #8  0x00007ffff70b93d4 in rocksdb::VersionSet::Recover (this=0x744d80, column_families=..., read_only=false, db_id=0x739590) at /root/code/rocksdb/db/version_set.cc:4660
+// #9  0x00007ffff6fa91f6 in rocksdb::DBImpl::Recover (this=0x739580, column_families=..., read_only=false, error_if_wal_file_exists=false, error_if_data_exists_in_wals=false, recovered_seq=0x7fffffffc050)
+//     at /root/code/rocksdb/db/db_impl/db_impl_open.cc:482
+// #10 0x00007ffff6fafe19 in rocksdb::DBImpl::Open (db_options=..., dbname=..., column_families=..., handles=0x7fffffffc4a0, dbptr=0x7fffffffd050, seq_per_batch=false, batch_per_txn=true)
+//     at /root/code/rocksdb/db/db_impl/db_impl_open.cc:1609
+// #11 0x00007ffff6faf13a in rocksdb::DB::Open (db_options=..., dbname=..., column_families=..., handles=0x7fffffffc4a0, dbptr=0x7fffffffd050) at /root/code/rocksdb/db/db_impl/db_impl_open.cc:1501
+// #12 0x00007ffff6faef05 in rocksdb::DB::Open (options=..., dbname=..., dbptr=0x7fffffffd050) at /root/code/rocksdb/db/db_impl/db_impl_open.cc:1478
+// #13 0x000000000043e3a8 in rocksdb::CheckpointTest_CheckpointWithBlob_Test::TestBody (this=0x72c130) at /root/code/rocksdb/utilities/checkpoint/checkpoint_test.cc:361
+// #14 0x000000000049a254 in testing::internal::HandleSehExceptionsInMethodIfSupported<testing::Test, void> (object=0x72c130, method=&virtual testing::Test::TestBody(), location=0x4abc8b "the test body")
+//     at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:3899
+// #15 0x0000000000494d00 in testing::internal::HandleExceptionsInMethodIfSupported<testing::Test, void> (object=0x72c130, method=&virtual testing::Test::TestBody(), location=0x4abc8b "the test body")
+//     at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:3935
+// #16 0x0000000000477918 in testing::Test::Run (this=0x72c130) at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:3973
+// #17 0x0000000000478141 in testing::TestInfo::Run (this=0x72a300) at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:4149
+// #18 0x0000000000478757 in testing::TestCase::Run (this=0x72a100) at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:4267
+// #19 0x0000000000482703 in testing::internal::UnitTestImpl::RunAllTests (this=0x729f10) at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:6633
+// #20 0x000000000049b1ad in testing::internal::HandleSehExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool> (object=0x729f10,
+//     method=(bool (testing::internal::UnitTestImpl::*)(testing::internal::UnitTestImpl * const)) 0x482472 <testing::internal::UnitTestImpl::RunAllTests()>, location=0x4ac640 "auxiliary test code (environments or event listeners)")
+//     at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:3899
+// #21 0x0000000000495a02 in testing::internal::HandleExceptionsInMethodIfSupported<testing::internal::UnitTestImpl, bool> (object=0x729f10,
+//     method=(bool (testing::internal::UnitTestImpl::*)(testing::internal::UnitTestImpl * const)) 0x482472 <testing::internal::UnitTestImpl::RunAllTests()>, location=0x4ac640 "auxiliary test code (environments or event listeners)")
+//     at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:3935
+// #22 0x000000000048136a in testing::UnitTest::Run (this=0x6e1c40 <testing::UnitTest::GetInstance()::instance>) at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest-all.cc:6242
+// #23 0x0000000000455eb6 in RUN_ALL_TESTS () at /root/code/rocksdb/third-party/gtest-1.8.1/fused-src/gtest/gtest.h:22104
+// #24 0x000000000044f312 in main (argc=1, argv=0x7fffffffdc38) at /root/code/rocksdb/utilities/checkpoint/checkpoint_test.cc:910

@@ -10,6 +10,7 @@
 #include "db/version_edit_handler.h"
 
 #include <cinttypes>
+#include <iostream>
 
 #include "monitoring/persistent_stats_history.h"
 
@@ -31,6 +32,7 @@ void VersionEditHandlerBase::Iterate(log::Reader& reader,
     if (!s.ok()) {
       break;
     }
+    std::cout << "Have read versionedit: " << edit.DebugString() << std::endl;
 
     s = read_buffer_.AddEdit(&edit);
     if (!s.ok()) {

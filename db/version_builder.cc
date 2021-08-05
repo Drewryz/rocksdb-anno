@@ -22,6 +22,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 #include "db/blob/blob_file_meta.h"
 #include "db/dbformat.h"
@@ -127,6 +128,7 @@ class VersionBuilder::Rep {
     }
 
     void LinkSst(uint64_t sst_file_number) {
+      std::cout << "LinkSST: " << sst_file_number << std::endl;
       assert(newly_linked_ssts_.find(sst_file_number) ==
              newly_linked_ssts_.end());
 
@@ -872,6 +874,7 @@ class VersionBuilder::Rep {
 
   // Save the current state in *v.
   Status SaveTo(VersionStorageInfo* vstorage) {
+    std::cout << "In SaveTo" << std::endl;
     Status s = CheckConsistency(base_vstorage_);
     if (!s.ok()) {
       return s;
