@@ -2793,6 +2793,10 @@ class Benchmark {
   }
 
  public:
+  /*
+   * Benchmark的构造函数
+   *  
+   */
   Benchmark()
       : cache_(NewCache(FLAGS_cache_size)),
         compressed_cache_(NewCache(FLAGS_compressed_cache_size)),
@@ -3036,6 +3040,9 @@ class Benchmark {
     }
     Open(&open_options_);
     PrintHeader();
+    /*
+     * --benchmarks选项指定了此次压测的场景，用,分割 
+     */
     std::stringstream benchmark_stream(FLAGS_benchmarks);
     std::string name;
     std::unique_ptr<ExpiredTimeFilter> filter;
@@ -3435,7 +3442,7 @@ class Benchmark {
       if (post_process_method != nullptr) {
         (this->*post_process_method)();
       }
-    }
+    } // end of while
 
     if (secondary_update_thread_) {
       secondary_update_stopped_.store(1, std::memory_order_relaxed);
@@ -7594,6 +7601,10 @@ class Benchmark {
   }
 };
 
+/*
+ * 入口。
+ * 该函数算是一个booster，大部分的压测逻辑在benchmark.Run()函数中
+ */
 int db_bench_tool(int argc, char** argv) {
   ROCKSDB_NAMESPACE::port::InstallStackTraceHandler();
   static bool initialized = false;
@@ -7750,6 +7761,6 @@ int db_bench_tool(int argc, char** argv) {
 #endif  // ROCKSDB_LITE
 
   return 0;
-}
+} // end of db_bench_tool
 }  // namespace ROCKSDB_NAMESPACE
 #endif
